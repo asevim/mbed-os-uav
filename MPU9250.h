@@ -192,8 +192,8 @@ uint8_t Mmode = 0x06;        // Either 8 Hz 0x02) or 100 Hz (0x06) magnetometer 
 float aRes, gRes, mRes;      // scale resolutions per LSB for the sensors
  
 //Set up I2C, (SDA,SCL)
-//#define I2C_SDA PB_7
-//#define I2C_SCL PB_6
+#define I2C_SDA PB_7
+#define I2C_SCL PB_6
 I2C i2c(I2C_SDA, I2C_SCL);   
  
 DigitalOut myled(LED1);
