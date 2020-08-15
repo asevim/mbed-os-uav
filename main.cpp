@@ -82,19 +82,33 @@ int byteToMotorValue(int val, bool reverse = false) {
     return result;
 }
 
+int MotorValueCalc(int val, bool reverse = false){
+    int result = val;
+    if(val < 1000){
+        result = 1000;
+    }
+    if(val > 2000){
+        result = 2000;
+    }
+    if(reverse){
+        result = 3000 - result;
+    }
+    return result;
+}
+
 void ManuelDrive() {
     int mOnsag = 1500 - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500);
     int mOnsol = 1500 - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  - (byteToMotorValue(controller.leftX) - 1500);
     int mArkasag = 1500 + (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500);
     int mArkasol = 1500 - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500);
 
-    mOnSag.pulsewidth_us(mOnsag);
-    mOnSol.pulsewidth_us(mOnsol);
-    mArkaSag.pulsewidth_us(3000-mArkasag);
-    mArkaSol.pulsewidth_us(mArkasol);
+    mOnSag.pulsewidth_us(MotorValueCalc(mOnsag));
+    mOnSol.pulsewidth_us(MotorValueCalc(mOnsol));
+    mArkaSag.pulsewidth_us(MotorValueCalc(mArkasag,true));
+    mArkaSol.pulsewidth_us(MotorValueCalc(mArkasol));
     
     mUstArka.pulsewidth_us(byteToMotorValue(controller.leftY));
-    mUstSag.pulsewidth_us(3000-byteToMotorValue(controller.leftY));
+    mUstSag.pulsewidth_us(byteToMotorValue(controller.leftY,true));
     mUstSol.pulsewidth_us(byteToMotorValue(controller.leftY));
 /* 
     printf("RX: %d", controller.rightX);
