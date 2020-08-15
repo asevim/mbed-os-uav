@@ -17,6 +17,7 @@ QMC5883L qmc(PB_7,PB_6);
 
 DigitalOut led1(PB_0);
 DigitalOut led2(PB_2);
+
 PwmOut mOnSag(PB_15);
 PwmOut mOnSol(PB_14);
 PwmOut mArkaSag(PC_6);
@@ -44,7 +45,12 @@ void resetRobot() {
 
 
 bool autonomousMod = false;
-void checkAutonomous() {
+void checkAutonomous(bool robotActive) {
+
+    if(!robotActive) {
+        return;
+    }
+
     if(controller.buttonX) {
         autonomousMod = false;
     }
@@ -65,25 +71,17 @@ void AutonomousDrive() {
     //not implemented
 }
 
-int byteToMotorValue(int val, bool reverse = false) {
-    if(val < 134 && val > 120) {
-        return 1500;
-    }
-    int result = val*4+(255/1000)+1000;
-    if(result > 2000) {
-        result = 2000;
-    }
-    if(result < 1000) {
-        result = 1000;
-    }
-    if(reverse) {
-        result = 3000 - result;
-    }
-    return result;
+int byteToMotorValue(int val) {
+    return val*4+(255/1000)+1000;
 }
 
-int MotorValueCalc(int val, bool reverse = false){
+int fitMotorValue(int val, bool reverse = false){
     int result = val;
+    
+    if(result < 1530 && result > 1470) {
+        return 1500;
+    }
+
     if(val < 1000){
         result = 1000;
     }
@@ -102,21 +100,18 @@ void ManuelDrive() {
     int mArkasag = 1500 + (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500);
     int mArkasol = 1500 - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500);
 
-    mOnSag.pulsewidth_us(MotorValueCalc(mOnsag));
-    mOnSol.pulsewidth_us(MotorValueCalc(mOnsol));
-    mArkaSag.pulsewidth_us(MotorValueCalc(mArkasag,true));
-    mArkaSol.pulsewidth_us(MotorValueCalc(mArkasol));
+    mOnSag.pulsewidth_us(fitMotorValue(mOnsag));
+    mOnSol.pulsewidth_us(fitMotorValue(mOnsol));
+    mArkaSag.pulsewidth_us(fitMotorValue(mArkasag,true));
+    mArkaSol.pulsewidth_us(fitMotorValue(mArkasol));
     
-    mUstArka.pulsewidth_us(byteToMotorValue(controller.leftY));
-    mUstSag.pulsewidth_us(byteToMotorValue(controller.leftY,true));
-    mUstSol.pulsewidth_us(byteToMotorValue(controller.leftY));
+    mUstArka.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY)));
+    mUstSag.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY), true));
+    mUstSol.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY)));
 /* 
     printf("RX: %d", controller.rightX);
-
     printf("RY: %d", controller.rightY);
-
     printf("LX: %d", controller.leftX);    
-
     printf("on sag: %d", mOnsag);
     
     printf("on sol: %d", mOnsol);
@@ -124,10 +119,7 @@ void ManuelDrive() {
     printf("arka sag: %d",mArkasag);
     
     printf("arka sol: %d\n", mArkasol);
-
 */
-
-
 }
 
 void initMotors() {
@@ -156,15 +148,16 @@ int main()
         if (can1.read(msg)) {
             controller.SetKeyValues(msg.id, msg.data);
             checkIsRobotActive();
-            checkAutonomous();
+            checkAutonomous(isRobotActive);
 
             //printf("%d\n", msg.data[0]);
         }
         if(!isRobotActive) {
             resetRobot();
-            led1 = !led1;
+            bool ledVal = !led1;
+            led1 = ledVal;
+            led2 = ledVal;
             wait_us(50000);
-            led2 = !led2;
             
         }
         if(autonomousMod) {
