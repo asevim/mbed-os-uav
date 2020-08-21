@@ -11,8 +11,11 @@
 
 #define PID_IN_MIN -360
 #define PID_IN_MAX 360
+#define PID_SET_POINT 0
+
 #define PID_OUT_MIN 1000
 #define PID_OUT_MAX 2000
+#define PID_BIAS 1500
 
 #define MPU_OFFSET_SAMPLES 50
 
@@ -159,17 +162,17 @@ void initPID() {
     rollPID.setInputLimits (PID_IN_MIN, PID_IN_MAX);
     rollPID.setOutputLimits (PID_OUT_MIN, PID_OUT_MAX);
     
-    pitchPID.setBias(1500);
-    yawPID.setBias(1500);
-    rollPID.setBias(1500);
+    pitchPID.setBias(PID_BIAS);
+    yawPID.setBias(PID_BIAS);
+    rollPID.setBias(PID_BIAS);
 
     pitchPID.setMode(AUTO_MODE);  
     yawPID.setMode(AUTO_MODE); 
     rollPID.setMode(AUTO_MODE);
 
-    pitchPID.setSetPoint(0);
-    yawPID.setSetPoint(0); 
-    rollPID.setSetPoint(0); 
+    pitchPID.setSetPoint(PID_SET_POINT);
+    yawPID.setSetPoint(PID_SET_POINT); 
+    rollPID.setSetPoint(PID_SET_POINT); 
 }
 
 void initGyro(float *accOffset, float *gyroOffset) {
