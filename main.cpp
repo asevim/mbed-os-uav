@@ -129,20 +129,6 @@ void ManuelDrive(int pitchDiff, int yawDiff, int rollDiff) {
     mUstArka.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY)));
     mUstSag.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY), true));
     mUstSol.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY)));
-
-    /*int mOnsag = (1500 - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
-    int mOnsol = (1500 - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  - (byteToMotorValue(controller.leftX) - 1500));
-    int mArkasag = (1500 + (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
-    int mArkasol = (1500 - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
-
-    mOnSag.pulsewidth_us(fitMotorValue(mOnsag));
-    mOnSol.pulsewidth_us(fitMotorValue(mOnsol));
-    mArkaSag.pulsewidth_us(fitMotorValue(mArkasag,true));
-    mArkaSol.pulsewidth_us(fitMotorValue(mArkasol));
-    
-    mUstArka.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY)));
-    mUstSag.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY), true));
-    mUstSol.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY)));*/
 }
 
 void initMotors() {
