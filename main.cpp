@@ -9,21 +9,20 @@
 #define Td 0
 #define RATE 0.1
 
-#define PITCH_IN_MIN -360
-#define PITCH_IN_MAX 360
-#define PITCH_OUT_MIN 1000
-#define PITCH_OUT_MAX 2000
- 
-#define ROLL_IN_MIN -360
-#define ROLL_IN_MAX 360
-#define ROLL_OUT_MIN 1000
-#define ROLL_OUT_MAX 2000
+#define PID_IN_MIN -360
+#define PID_IN_MAX 360
+#define PID_SET_POINT 0
+
+#define PID_OUT_MIN 1000
+#define PID_OUT_MAX 2000
+#define PID_BIAS 1500
 
 #define MPU_OFFSET_SAMPLES 50
 
 // 0 AXIS1 - 1 AXIS2 - 2 AXIS3 (need sync with card position)
-#define MPU_ROLL_AXIS 0 //robotu oldugu yerde saga sola cevirme
-#define MPU_PITCH_AXIS 1 //kafayi oldugu yerde yukari asagi yapma
+#define MPU_YAW_AXIS 0 //ROBOTUN OLDUGU YERDE SAGA SOLA DONMESI
+#define MPU_PITCH_AXIS 1 //ROBOTUN KAFASINI YUKARI ASAGI YAPMASI
+#define MPU_ROLL_AXIS 2 //ROBOTUN SAGA SOLA YATMASI
 
 static BufferedSerial serial_port(PA_9, PA_10, 9600);
 FileHandle *mbed::mbed_override_console(int fd)
@@ -48,6 +47,7 @@ PwmOut mUstSag(PC_9);
 PwmOut mUstSol(PC_8);
 
 PID pitchPID (Kc, Ti, Td, RATE);
+PID yawPID (Kc, Ti, Td, RATE);
 PID rollPID (Kc, Ti, Td, RATE);
 
 CAN can1(PB_8, PB_9, 500000);
@@ -91,7 +91,7 @@ void checkAutonomous(bool robotActive) {
     }
 }
 
-void AutonomousDrive(int pitchDiff, int rollDiff) {
+void AutonomousDrive(int pitchDiff, int yawDiff, int rollDiff) {
     //not implemented
 }
 
@@ -118,7 +118,7 @@ int fitMotorValue(int val, bool reverse = false){
     return result;
 }
 
-void ManuelDrive(int pitchDiff, int rollDiff) {
+void ManuelDrive(int pitchDiff, int yawDiff, int rollDiff) {
     int mOnsag = (1500 - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
     int mOnsol = (1500 - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  - (byteToMotorValue(controller.leftX) - 1500));
     int mArkasag = (1500 + (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
@@ -132,20 +132,6 @@ void ManuelDrive(int pitchDiff, int rollDiff) {
     mUstArka.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY),true));
     mUstSag.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY), true));
     mUstSol.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY)));
-
-    /*int mOnsag = (1500 - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
-    int mOnsol = (1500 - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  - (byteToMotorValue(controller.leftX) - 1500));
-    int mArkasag = (1500 + (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
-    int mArkasol = (1500 - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
-
-    mOnSag.pulsewidth_us(fitMotorValue(mOnsag));
-    mOnSol.pulsewidth_us(fitMotorValue(mOnsol));
-    mArkaSag.pulsewidth_us(fitMotorValue(mArkasag,true));
-    mArkaSol.pulsewidth_us(fitMotorValue(mArkasol));
-    
-    mUstArka.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY)));
-    mUstSag.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY), true));
-    mUstSol.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY)));*/
 }
 
 void initMotors() {
@@ -167,20 +153,26 @@ void initMotors() {
 }
 
 void initPID() {
-    pitchPID.setInputLimits (PITCH_IN_MIN, PITCH_IN_MAX);  
-    pitchPID.setOutputLimits (PITCH_OUT_MIN, PITCH_OUT_MAX);
+    pitchPID.setInputLimits (PID_IN_MIN, PID_IN_MAX);  
+    pitchPID.setOutputLimits (PID_OUT_MIN, PID_OUT_MAX);
  
-    rollPID.setInputLimits (ROLL_IN_MIN, ROLL_IN_MAX);
-    rollPID.setOutputLimits (ROLL_OUT_MIN, ROLL_OUT_MAX);
+    yawPID.setInputLimits (PID_IN_MIN, PID_IN_MAX);
+    yawPID.setOutputLimits (PID_OUT_MIN, PID_OUT_MAX);
+
+    rollPID.setInputLimits (PID_IN_MIN, PID_IN_MAX);
+    rollPID.setOutputLimits (PID_OUT_MIN, PID_OUT_MAX);
     
-    rollPID.setBias(1500);
-    pitchPID.setBias(1500);
+    pitchPID.setBias(PID_BIAS);
+    yawPID.setBias(PID_BIAS);
+    rollPID.setBias(PID_BIAS);
 
     pitchPID.setMode(AUTO_MODE);  
+    yawPID.setMode(AUTO_MODE); 
     rollPID.setMode(AUTO_MODE);
 
-    pitchPID.setSetPoint(0);
-    rollPID.setSetPoint(0); 
+    pitchPID.setSetPoint(PID_SET_POINT);
+    yawPID.setSetPoint(PID_SET_POINT); 
+    rollPID.setSetPoint(PID_SET_POINT); 
 }
 
 void initGyro(float *accOffset, float *gyroOffset) {
@@ -196,6 +188,7 @@ int main()
     initPID();
 
     float pitchDiff;
+    float yawDiff;
     float rollDiff;
 
     float currTime;
@@ -215,15 +208,18 @@ int main()
         timeDiff = currTime - prevTime;
         mpu.computeAngle (angle, accOffset, gyroOffset, timeDiff);
 
-        rollPID.setInterval(timeDiff);
+        yawPID.setInterval(timeDiff);
         pitchPID.setInterval(timeDiff);
+        rollPID.setInterval(timeDiff);
 
         prevTime = chrono::duration<float>(timer.elapsed_time()).count();
 
-        rollPID.setProcessValue (angle[MPU_ROLL_AXIS]); 
+        yawPID.setProcessValue (angle[MPU_YAW_AXIS]); 
         pitchPID.setProcessValue (angle[MPU_PITCH_AXIS]);
+        rollPID.setProcessValue (angle[MPU_ROLL_AXIS]);
 
         pitchDiff = pitchPID.compute();
+        yawDiff = yawPID.compute();
         rollDiff = rollPID.compute();
 
         if (can1.read(msg)) {
@@ -239,10 +235,10 @@ int main()
             wait_us(50000);
         }
         if(autonomousMod) {
-            AutonomousDrive((int)pitchDiff, (int)rollDiff);
+            AutonomousDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
         }
         else {
-            ManuelDrive((int)pitchDiff, (int)rollDiff);
+            ManuelDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
         }
     }
 }
