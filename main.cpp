@@ -129,7 +129,7 @@ void ManuelDrive(int pitchDiff, int rollDiff) {
     mArkaSag.pulsewidth_us(fitMotorValue(mArkasag,true));
     mArkaSol.pulsewidth_us(fitMotorValue(mArkasol));
     
-    mUstArka.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY)));
+    mUstArka.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY),true));
     mUstSag.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY), true));
     mUstSol.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY)));
 
