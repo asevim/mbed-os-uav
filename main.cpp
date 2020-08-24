@@ -4,8 +4,8 @@
 #include "controller.h"
 #include "PID.h"
 
-#define Kc 0.3
-#define Ti 3.5
+#define Kc 3
+#define Ti 0
 #define Td 0
 #define RATE 0.1
 
@@ -29,6 +29,7 @@ FileHandle *mbed::mbed_override_console(int fd)
 {
     return &serial_port;
 }
+
 
 MPU6050 mpu(PB_7,PB_6);
 //QMC5883L qmc(PB_7,PB_6);
@@ -119,19 +120,25 @@ int fitMotorValue(int val, bool reverse = false){
 }
 
 void ManuelDrive(int pitchDiff, int yawDiff, int rollDiff) {
-    int mOnsag = (1500 - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
-    int mOnsol = (1500 - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  - (byteToMotorValue(controller.leftX) - 1500));
-    int mArkasag = (1500 + (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
-    int mArkasol = (1500 - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
+    int mOnsag = (1500 - (1500 - yawDiff) - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
+    int mOnsol = (1500 - (1500 - yawDiff) - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  - (byteToMotorValue(controller.leftX) - 1500));
+    int mArkasag = (1500 + (1500 - yawDiff) + (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
+    int mArkasol = (1500 - (1500 - yawDiff) - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
 
     mOnSag.pulsewidth_us(fitMotorValue(mOnsag));
     mOnSol.pulsewidth_us(fitMotorValue(mOnsol));
     mArkaSag.pulsewidth_us(fitMotorValue(mArkasag,true));
     mArkaSol.pulsewidth_us(fitMotorValue(mArkasol));
-    
-    mUstArka.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY),true));
-    mUstSag.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY), true));
-    mUstSol.pulsewidth_us(fitMotorValue(byteToMotorValue(controller.leftY)));
+
+    int mUstarka = (1500 - (1500 - pitchDiff) + (byteToMotorValue(controller.leftY) - 1500));
+    int mUstsag = (1500 - (1500 - pitchDiff) + (1500 - rollDiff) + (byteToMotorValue(controller.leftY) - 1500));
+    int mUstsol = (1500 - (1500 - pitchDiff) - (1500 - rollDiff) + (byteToMotorValue(controller.leftY) - 1500));
+
+    mUstArka.pulsewidth_us(fitMotorValue(mUstarka,true));
+    mUstSag.pulsewidth_us(fitMotorValue(mUstsag, true));
+    mUstSol.pulsewidth_us(fitMotorValue(mUstsol));
+
+    printf("pitch:%d \n", pitchDiff);
 }
 
 void initMotors() {
@@ -227,18 +234,19 @@ int main()
             checkIsRobotActive();
             checkAutonomous(isRobotActive);
         }
-        if(!isRobotActive) {
+        if(!isRobotActive && can1.read(msg) != 1) {
             resetRobot();
             bool ledVal = !led1;
             led1 = ledVal;
             led2 = ledVal;
             wait_us(50000);
-        }
-        if(autonomousMod) {
-            AutonomousDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
-        }
-        else {
-            ManuelDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
+        }else{
+            if(autonomousMod) {
+                AutonomousDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
+            }
+            else {
+                ManuelDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
+            }
         }
     }
 }
