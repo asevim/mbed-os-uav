@@ -11,7 +11,6 @@
 
 #define PID_IN_MIN -360
 #define PID_IN_MAX 360
-#define PID_SET_POINT 0
 
 #define PID_OUT_MIN 1000
 #define PID_OUT_MAX 2000
@@ -53,6 +52,18 @@ PID rollPID (Kc, Ti, Td, RATE);
 
 CAN can1(PB_8, PB_9, 500000);
 Controller controller;
+
+float pitchDiff;
+float yawDiff;
+float rollDiff;
+
+float currTime;
+float prevTime;
+float timeDiff;
+
+float accOffset[3];
+float gyroOffset[3];
+float angle[3]; 
 
 bool isRobotActive = false;
 void checkIsRobotActive() {
@@ -118,7 +129,16 @@ int fitMotorValue(int val, bool reverse = false){
     }
     return result;
 }
-
+void SetPointPID(float PidSetPointPitch, float PidSetPointYaw, float PidSetPointRoll){  
+    pitchPID.setSetPoint(PidSetPointPitch);
+    yawPID.setSetPoint(PidSetPointYaw); 
+    rollPID.setSetPoint(PidSetPointRoll); 
+}
+void JoystickCheck(){
+    if(byteToMotorValue((controller.leftX) || controller.leftY || controller.rightX || controller.rightY) != 1500){  
+        SetPointPID(angle[MPU_PITCH_AXIS], angle[MPU_YAW_AXIS] , angle[MPU_ROLL_AXIS]);
+    }
+}
 void ManuelDrive(int pitchDiff, int yawDiff, int rollDiff) {
     int mOnsag = (1500 - (1500 - yawDiff) - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
     int mOnsol = (1500 - (1500 - yawDiff) - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  - (byteToMotorValue(controller.leftX) - 1500));
@@ -138,6 +158,7 @@ void ManuelDrive(int pitchDiff, int yawDiff, int rollDiff) {
     mUstSag.pulsewidth_us(fitMotorValue(mUstsag, true));
     mUstSol.pulsewidth_us(fitMotorValue(mUstsol));
 
+    JoystickCheck();
     printf("pitch:%d \n", pitchDiff);
 }
 
@@ -176,12 +197,7 @@ void initPID() {
     pitchPID.setMode(AUTO_MODE);  
     yawPID.setMode(AUTO_MODE); 
     rollPID.setMode(AUTO_MODE);
-
-    pitchPID.setSetPoint(PID_SET_POINT);
-    yawPID.setSetPoint(PID_SET_POINT); 
-    rollPID.setSetPoint(PID_SET_POINT); 
 }
-
 void initGyro(float *accOffset, float *gyroOffset) {
     mpu.setAlpha(0.97);
     mpu.getOffset(accOffset, gyroOffset, MPU_OFFSET_SAMPLES);
@@ -192,20 +208,10 @@ int main()
 {
     initMotors();
     CANMessage msg;
+
     initPID();
-
-    float pitchDiff;
-    float yawDiff;
-    float rollDiff;
-
-    float currTime;
-    float prevTime;
-    float timeDiff;
-
-    float accOffset[3];
-    float gyroOffset[3];
-    float angle[3]; 
     initGyro(accOffset, gyroOffset);
+    SetPointPID(0, 0, 0);
 
     timer.start();
     prevTime = chrono::duration<float>(timer.elapsed_time()).count();
@@ -240,7 +246,8 @@ int main()
             led1 = ledVal;
             led2 = ledVal;
             wait_us(50000);
-        }else{
+        }
+        else {
             if(autonomousMod) {
                 AutonomousDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
             }
