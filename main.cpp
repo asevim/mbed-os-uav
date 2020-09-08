@@ -1,16 +1,18 @@
 #include "mbed.h"
 #include "MPU6050.h"
-//#include "QMC5883L.h"
+#include "QMC5883L.h"
 #include "controller.h"
 #include "PID.h"
+#include "MS5837.h"
 
-#define Kc 3
-#define Ti 0
-#define Td 0
+#define Kc 2.96
+#define Ti 0.1
+#define Td 0.5
 #define RATE 0.1
 
-#define PID_IN_MIN -360
-#define PID_IN_MAX 360
+#define PID_ROLL_PITCH_IN 90
+
+#define PID_YAW_IN 360
 
 #define PID_OUT_MIN 1000
 #define PID_OUT_MAX 2000
@@ -19,9 +21,9 @@
 #define MPU_OFFSET_SAMPLES 50
 
 // 0 AXIS1 - 1 AXIS2 - 2 AXIS3 (need sync with card position)
-#define MPU_YAW_AXIS 0 //ROBOTUN OLDUGU YERDE SAGA SOLA DONMESI
-#define MPU_PITCH_AXIS 1 //ROBOTUN KAFASINI YUKARI ASAGI YAPMASI
-#define MPU_ROLL_AXIS 2 //ROBOTUN SAGA SOLA YATMASI
+#define MPU_X_AXIS 2 //ROBOTUN OLDUGU YERDE SAGA SOLA DONMESI
+#define MPU_Y_AXIS 0 //ROBOTUN KAFASINI YUKARI ASAGI YAPMASI
+#define MPU_Z_AXIS 1 //ROBOTUN SAGA SOLA YATMASI
 
 static BufferedSerial serial_port(PA_9, PA_10, 9600);
 FileHandle *mbed::mbed_override_console(int fd)
@@ -31,7 +33,8 @@ FileHandle *mbed::mbed_override_console(int fd)
 
 
 MPU6050 mpu(PB_7,PB_6);
-//QMC5883L qmc(PB_7,PB_6);
+QMC5883L qmc(PB_7,PB_6);
+//MS5837 ms(PB_7,PB_6);
 
 Timer timer;
 
@@ -74,11 +77,6 @@ void checkIsRobotActive() {
         isRobotActive = false;
     }
 }
-
-void resetRobot() {
-    controller.Reset();
-}
-
 
 bool autonomousMod = false;
 void checkAutonomous(bool robotActive) {
@@ -129,37 +127,36 @@ int fitMotorValue(int val, bool reverse = false){
     }
     return result;
 }
-void SetPointPID(float PidSetPointPitch, float PidSetPointYaw, float PidSetPointRoll){  
-    pitchPID.setSetPoint(PidSetPointPitch);
-    yawPID.setSetPoint(PidSetPointYaw); 
-    rollPID.setSetPoint(PidSetPointRoll); 
+bool isAnalogStickMoved(int stick){
+    return fitMotorValue(byteToMotorValue(stick)) != 1500;
 }
-void JoystickCheck(){
-    if(byteToMotorValue((controller.leftX) || controller.leftY || controller.rightX || controller.rightY) != 1500){  
-        SetPointPID(angle[MPU_PITCH_AXIS], angle[MPU_YAW_AXIS] , angle[MPU_ROLL_AXIS]);
-    }
+
+void JoystickCheck(int yawAngle, int pitchAngle, int rollAngle){
+    if(isAnalogStickMoved(controller.leftX)){
+        yawPID.setSetPoint(yawAngle);
+    }  
+    int trigger = (controller.leftTrigger - controller.rightTrigger)/6;
+    pitchPID.setSetPoint(trigger);
 }
+
 void ManuelDrive(int pitchDiff, int yawDiff, int rollDiff) {
-    int mOnsag = (1500 - (1500 - yawDiff) - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
-    int mOnsol = (1500 - (1500 - yawDiff) - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  - (byteToMotorValue(controller.leftX) - 1500));
-    int mArkasag = (1500 + (1500 - yawDiff) + (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
-    int mArkasol = (1500 - (1500 - yawDiff) - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
+    int mOnsag = (1500 - (fitMotorValue(yawDiff) - 1500) - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
+    int mOnsol = (1500 - (fitMotorValue(yawDiff,true) - 1500) - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  - (byteToMotorValue(controller.leftX) - 1500));
+    int mArkasag = (1500 + (fitMotorValue(yawDiff,true) - 1500) - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
+    int mArkasol = (1500 - (fitMotorValue(yawDiff,true) - 1500) - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
 
     mOnSag.pulsewidth_us(fitMotorValue(mOnsag));
     mOnSol.pulsewidth_us(fitMotorValue(mOnsol));
     mArkaSag.pulsewidth_us(fitMotorValue(mArkasag,true));
     mArkaSol.pulsewidth_us(fitMotorValue(mArkasol));
 
-    int mUstarka = (1500 - (1500 - pitchDiff) + (byteToMotorValue(controller.leftY) - 1500));
-    int mUstsag = (1500 - (1500 - pitchDiff) + (1500 - rollDiff) + (byteToMotorValue(controller.leftY) - 1500));
-    int mUstsol = (1500 - (1500 - pitchDiff) - (1500 - rollDiff) + (byteToMotorValue(controller.leftY) - 1500));
+    int mUstarka = (1500 + (fitMotorValue(pitchDiff,true) - 1500) + (byteToMotorValue(controller.leftY) - 1500));
+    int mUstsag = (1500 + (fitMotorValue(rollDiff) - 1500) + (fitMotorValue(pitchDiff) - 1500) + (byteToMotorValue(controller.leftY) - 1500));
+    int mUstsol = (1500 + (fitMotorValue(rollDiff,true) - 1500) +  (fitMotorValue(pitchDiff) - 1500) + (byteToMotorValue(controller.leftY) - 1500));
 
     mUstArka.pulsewidth_us(fitMotorValue(mUstarka,true));
     mUstSag.pulsewidth_us(fitMotorValue(mUstsag, true));
     mUstSol.pulsewidth_us(fitMotorValue(mUstsol));
-
-    JoystickCheck();
-    printf("pitch:%d \n", pitchDiff);
 }
 
 void initMotors() {
@@ -181,13 +178,13 @@ void initMotors() {
 }
 
 void initPID() {
-    pitchPID.setInputLimits (PID_IN_MIN, PID_IN_MAX);  
+    pitchPID.setInputLimits (-1 * PID_ROLL_PITCH_IN, PID_ROLL_PITCH_IN);  
     pitchPID.setOutputLimits (PID_OUT_MIN, PID_OUT_MAX);
  
-    yawPID.setInputLimits (PID_IN_MIN, PID_IN_MAX);
+    yawPID.setInputLimits (-1* PID_YAW_IN, PID_YAW_IN);
     yawPID.setOutputLimits (PID_OUT_MIN, PID_OUT_MAX);
 
-    rollPID.setInputLimits (PID_IN_MIN, PID_IN_MAX);
+    rollPID.setInputLimits (-1 * PID_ROLL_PITCH_IN, PID_ROLL_PITCH_IN);
     rollPID.setOutputLimits (PID_OUT_MIN, PID_OUT_MAX);
     
     pitchPID.setBias(PID_BIAS);
@@ -201,7 +198,25 @@ void initPID() {
 void initGyro(float *accOffset, float *gyroOffset) {
     mpu.setAlpha(0.97);
     mpu.getOffset(accOffset, gyroOffset, MPU_OFFSET_SAMPLES);
+    angle[0] = 0;
+    angle[1] = 0;
+    angle[2] = 0;
     wait_us(1000);
+}
+void resetRobot() {
+    controller.Reset();
+    pitchPID.setSetPoint(0);
+    yawPID.setSetPoint(0);
+    rollPID.setSetPoint(0);
+    initGyro(accOffset, gyroOffset);
+    mOnSag.pulsewidth_us(1500);
+    mOnSol.pulsewidth_us(1500);
+    mArkaSag.pulsewidth_us(1500);
+    mArkaSol.pulsewidth_us(1500);
+    mUstArka.pulsewidth_us(1500);
+    mUstSag.pulsewidth_us(1500);
+    mUstSol.pulsewidth_us(1500);
+
 }
 
 int main()
@@ -211,10 +226,14 @@ int main()
 
     initPID();
     initGyro(accOffset, gyroOffset);
-    SetPointPID(0, 0, 0);
+    pitchPID.setSetPoint(0);
+    yawPID.setSetPoint(0);
+    rollPID.setSetPoint(0);
+    qmc.ChipID();
+    qmc.init();
 
     timer.start();
-    prevTime = chrono::duration<float>(timer.elapsed_time()).count();
+    prevTime = chrono::duration<float>(timer.elapsed_time()).count();  
 
     while (true) {
         currTime = chrono::duration<float>(timer.elapsed_time()).count();
@@ -227,32 +246,38 @@ int main()
 
         prevTime = chrono::duration<float>(timer.elapsed_time()).count();
 
-        yawPID.setProcessValue (angle[MPU_YAW_AXIS]); 
-        pitchPID.setProcessValue (angle[MPU_PITCH_AXIS]);
-        rollPID.setProcessValue (angle[MPU_ROLL_AXIS]);
+        int yawAngle = (int)angle[MPU_Z_AXIS] % PID_YAW_IN;
+        int pitchAngle = (int)angle[MPU_Y_AXIS] > PID_ROLL_PITCH_IN ? PID_ROLL_PITCH_IN : angle[MPU_Y_AXIS];
+        int rollAngle = (int)angle[MPU_X_AXIS] > PID_ROLL_PITCH_IN ? PID_ROLL_PITCH_IN : angle[MPU_X_AXIS];
+        pitchAngle = (int)angle[MPU_Y_AXIS] < -1*PID_ROLL_PITCH_IN ? -1*PID_ROLL_PITCH_IN : angle[MPU_Y_AXIS];
+        rollAngle = (int)angle[MPU_X_AXIS] < -1*PID_ROLL_PITCH_IN ? -1*PID_ROLL_PITCH_IN : angle[MPU_X_AXIS];
+
+        yawPID.setProcessValue (yawAngle); 
+        pitchPID.setProcessValue (pitchAngle);
+        rollPID.setProcessValue (rollAngle);
 
         pitchDiff = pitchPID.compute();
         yawDiff = yawPID.compute();
-        rollDiff = rollPID.compute();
+        rollDiff = rollPID.compute();        
 
         if (can1.read(msg)) {
             controller.SetKeyValues(msg.id, msg.data);
             checkIsRobotActive();
             checkAutonomous(isRobotActive);
         }
-        if(!isRobotActive && can1.read(msg) != 1) {
+        if(!isRobotActive) {
             resetRobot();
             bool ledVal = !led1;
             led1 = ledVal;
             led2 = ledVal;
             wait_us(50000);
-        }
-        else {
+        }else{
             if(autonomousMod) {
                 AutonomousDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
             }
             else {
                 ManuelDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
+                JoystickCheck(yawAngle, pitchAngle, rollAngle);
             }
         }
     }
