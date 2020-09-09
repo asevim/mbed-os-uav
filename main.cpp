@@ -6,7 +6,7 @@
 #include "MS5837.h"
 
 #define Kc 2.96
-#define Ti 0.1
+#define Ti 0.01
 #define Td 0.5
 #define RATE 0.1
 
@@ -20,7 +20,6 @@
 
 #define MPU_OFFSET_SAMPLES 50
 
-// 0 AXIS1 - 1 AXIS2 - 2 AXIS3 (need sync with card position)
 #define MPU_X_AXIS 2 //ROBOTUN OLDUGU YERDE SAGA SOLA DONMESI
 #define MPU_Y_AXIS 0 //ROBOTUN KAFASINI YUKARI ASAGI YAPMASI
 #define MPU_Z_AXIS 1 //ROBOTUN SAGA SOLA YATMASI
@@ -80,7 +79,6 @@ void checkIsRobotActive() {
 
 bool autonomousMod = false;
 void checkAutonomous(bool robotActive) {
-
     if(!robotActive) {
         return;
     }
@@ -115,7 +113,6 @@ int fitMotorValue(int val, bool reverse = false){
     if(result < 1530 && result > 1470) {
         return 1500;
     }
-
     if(val < 1000){
         result = 1000;
     }
@@ -181,7 +178,7 @@ void initPID() {
     pitchPID.setInputLimits (-1 * PID_ROLL_PITCH_IN, PID_ROLL_PITCH_IN);  
     pitchPID.setOutputLimits (PID_OUT_MIN, PID_OUT_MAX);
  
-    yawPID.setInputLimits (-1* PID_YAW_IN, PID_YAW_IN);
+    yawPID.setInputLimits (-1 * PID_YAW_IN, PID_YAW_IN);
     yawPID.setOutputLimits (PID_OUT_MIN, PID_OUT_MAX);
 
     rollPID.setInputLimits (-1 * PID_ROLL_PITCH_IN, PID_ROLL_PITCH_IN);
