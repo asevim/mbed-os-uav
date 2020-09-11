@@ -1,6 +1,6 @@
 #include "mbed.h"
 #include "MPU6050.h"
-#include "QMC5883L.h"
+//#include "QMC5883L.h"
 #include "controller.h"
 #include "PID.h"
 #include "MS5837.h"
@@ -32,8 +32,8 @@ FileHandle *mbed::mbed_override_console(int fd)
 
 
 MPU6050 mpu(PB_7,PB_6);
-QMC5883L qmc(PB_7,PB_6);
-//MS5837 ms(PB_7,PB_6);
+//QMC5883L qmc(PB_7,PB_6);
+MS5837 ms(PB_7,PB_6);
 
 Timer timer;
 
@@ -226,8 +226,9 @@ int main()
     pitchPID.setSetPoint(0);
     yawPID.setSetPoint(0);
     rollPID.setSetPoint(0);
-    qmc.ChipID();
-    qmc.init();
+    ms.MS5837Init();
+    
+   
 
     timer.start();
     prevTime = chrono::duration<float>(timer.elapsed_time()).count();  
@@ -255,7 +256,16 @@ int main()
 
         pitchDiff = pitchPID.compute();
         yawDiff = yawPID.compute();
-        rollDiff = rollPID.compute();        
+        rollDiff = rollPID.compute();
+
+        int pressure;
+        int temperature;
+        ms.Barometer_MS5837();
+        pressure = (int)ms.MS5837_Pressure();
+        temperature = (int)ms.MS5837_Temperature();
+
+        //printf("press: %d\n",pressure);   
+        //printf("temp: %d\n",temperature);      
 
         if (can1.read(msg)) {
             controller.SetKeyValues(msg.id, msg.data);
