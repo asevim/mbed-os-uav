@@ -13,9 +13,9 @@
 #define PID_PITCH_Ti 1.75
 #define PID_PITCH_Td 0.01
 
-#define PID_YAW_Kc 4
-#define PID_YAW_Ti 1.5
-#define PID_YAW_Td 0
+#define PID_YAW_Kc 2.61
+#define PID_YAW_Ti 0.75
+#define PID_YAW_Td 0.2
 
 #define PID_ROLL_PITCH_IN 90
 
@@ -202,20 +202,13 @@ void initPID() {
 void initGyro(float *accOffset, float *gyroOffset) {
     mpu.setAlpha(0.97);
     mpu.getOffset(accOffset, gyroOffset, MPU_OFFSET_SAMPLES);
-    angle[0] = 0;
-    angle[1] = 0;
-    angle[2] = 0;
-    wait_us(1000);
+    wait_us(10000);
 }
 void resetRobot() {
     controller.Reset();
-    pitchPID.setSetPoint(0);
-    yawPID.setSetPoint(0);
-    rollPID.setSetPoint(0);
     pitchPID.reset();
     yawPID.reset();
     rollPID.reset();
-    initGyro(accOffset, gyroOffset);
     mOnSag.pulsewidth_us(1500);
     mOnSol.pulsewidth_us(1500);
     mArkaSag.pulsewidth_us(1500);
@@ -242,7 +235,7 @@ int main()
     while (true) {
         int batteryVoltage = (10000+1000) / 1000 * (3.3 / 65535) * a0.read_u16() *10;
         led2 = batteryVoltage > 180;
-        //printf("analog: %d\n",batteryVoltage); 
+         printf("analog: %d\n",batteryVoltage); 
         
         currTime = chrono::duration<float>(timer.elapsed_time()).count();
         timeDiff = currTime - prevTime;
@@ -276,10 +269,11 @@ int main()
         pitchPID.setProcessValue (pitchAngle);
         rollPID.setProcessValue (rollAngle);
 
-
         pitchDiff = pitchPID.compute();
         yawDiff = yawPID.compute();
         rollDiff = rollPID.compute();
+
+        //printf("%d - %d\n",yawAngle, (int)yawDiff); 
 
         if(autonomousMod) {
             AutonomousDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
@@ -288,5 +282,6 @@ int main()
             ManuelDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
             JoystickCheck(yawAngle, pitchAngle, rollAngle);
         }
+        wait_us(100);
     }
 }
