@@ -4,18 +4,17 @@
 #include "controller.h"
 #include "PID.h"
 
-#define PID_ROLL_Kc 0.5
-#define PID_ROLL_Ti 1
-#define PID_ROLL_Td 0
+#define PID_ROLL_Kc 0.2
+#define PID_ROLL_Ti 5
+#define PID_ROLL_Td 0.5
 
-#define PID_PITCH_Kc 3
-#define PID_PITCH_Ti 0
-#define PID_PITCH_Td 0.1
+#define PID_PITCH_Kc 0.3
+#define PID_PITCH_Ti 5
+#define PID_PITCH_Td 0.4
 
-#define PID_YAW_Kc 5
+#define PID_YAW_Kc 2
 #define PID_YAW_Ti 0
 #define PID_YAW_Td 0
-
 #define PID_ROLL_PITCH_IN 90
 
 #define PID_YAW_IN 360
@@ -115,27 +114,31 @@ bool isAnalogStickMoved(int stick){
 }
  
 int yawAngleOffset;
-void JoystickCheck(int yawAngle){
+int pitchAngleOffset;
+void JoystickCheck(int yawAngle, int pitchAngle){
     if(isAnalogStickMoved(controller.leftX)){
         yawAngleOffset = (-1) * yawAngle;
-    }  
-    // int trigger = (controller.leftTrigger - controller.rightTrigger)/6;
-    // pitchPID.setSetPoint(trigger);
+    }
+    if(controller.leftTrigger || controller.rightTrigger !=0){
+        pitchAngleOffset = (-1) * pitchAngle;
+    }
 }
 void Drive(int RightY, int RightX, int LeftY, int LeftX, int pitchDiff, int yawDiff, int rollDiff){
     RightY = byteToMotorValue(RightY);
     RightX = byteToMotorValue(RightX);
     LeftY = byteToMotorValue(LeftY);
     LeftX = byteToMotorValue(LeftX);
+    int leftTrigger = byteToMotorValue(controller.leftTrigger);
+    int rightTrigger = byteToMotorValue(controller.rightTrigger);
 
     int mOnsag = (1500 + (yawDiff - 1500) - (RightY - 1500) + (RightX - 1500)  + (LeftX - 1500));
     int mOnsol = (1500 - (yawDiff - 1500) - (RightY - 1500) - (RightX - 1500)  - (LeftX - 1500));
     int mArkasag = (1500 - (yawDiff - 1500) + (RightY - 1500) + (RightX - 1500)  - (LeftX - 1500));
     int mArkasol = (1500 - (yawDiff - 1500) - (RightY - 1500) + (RightX - 1500)  - (LeftX - 1500));
 
-    int mUstarka = (1500 + (pitchDiff - 1500) + (LeftY - 1500)*3/5);
-    int mUstsag = (1500  - (pitchDiff-1500)*3/5 + (LeftY - 1500));
-    int mUstsol = (1500 + (pitchDiff - 1500)*3/5 - (LeftY - 1500));
+    int mUstarka = (1500 + (pitchDiff - 1500) + (LeftY - 1500)*3/5 + (leftTrigger/4 - rightTrigger/4));
+    int mUstsag = (1500  - (pitchDiff-1500) + (LeftY - 1500) + (rollDiff - 1500) - (leftTrigger/4 - rightTrigger/4));
+    int mUstsol = (1500 + (pitchDiff - 1500) - (LeftY - 1500) - (rollDiff - 1500) + (leftTrigger/4 - rightTrigger/4));
 
     mOnSag.pulsewidth_us(fitMotorValue(mOnsag));
     mOnSol.pulsewidth_us(fitMotorValue(mOnsol));
@@ -275,7 +278,7 @@ int main()
         rollAngle = (int)angle[MPU_X_AXIS] < -1*PID_ROLL_PITCH_IN ? -1*PID_ROLL_PITCH_IN : angle[MPU_X_AXIS];
 
         yawPID.setProcessValue (yawAngle + yawAngleOffset); 
-        pitchPID.setProcessValue (pitchAngle);
+        pitchPID.setProcessValue (pitchAngle + pitchAngleOffset);
         rollPID.setProcessValue (rollAngle);
 
         pitchDiff = pitchPID.compute();
@@ -304,7 +307,7 @@ int main()
         else {
             //manual
             Drive(controller.rightY,controller.rightX,controller.leftY,controller.leftX,(int)pitchDiff, (int)yawDiff, (int)rollDiff);
-            JoystickCheck(yawAngle);
+            JoystickCheck(yawAngle, pitchAngle);
         }
         //FlushSerial();
     }
