@@ -6,6 +6,7 @@ class Controller
 public:
     Controller();
     void SetKeyValues(unsigned int id, unsigned char *data);
+    void SetAutonomousValues(int autonomous_leftY, int autonomous_rightY, int autonomous_rightX);
     void Reset();
 
 public:
@@ -25,6 +26,10 @@ public:
     bool dpadRight;
     bool leftBumper;
     bool rightBumper;
+
+    int autonomous_leftY;
+    int autonomous_rightY;
+    int autonomous_rightX;
 };
 
 #endif // CONTROLLER_H

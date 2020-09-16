@@ -3,19 +3,18 @@
 //#include "QMC5883L.h"
 #include "controller.h"
 #include "PID.h"
-//#include "MS5837.h"
 
-#define PID_ROLL_Kc 2.16
-#define PID_ROLL_Ti 1.75
-#define PID_ROLL_Td 0.01
+#define PID_ROLL_Kc 0.5
+#define PID_ROLL_Ti 1
+#define PID_ROLL_Td 0
 
-#define PID_PITCH_Kc 2.16
-#define PID_PITCH_Ti 1.75
-#define PID_PITCH_Td 0.01
+#define PID_PITCH_Kc 2
+#define PID_PITCH_Ti 0
+#define PID_PITCH_Td 0
 
-#define PID_YAW_Kc 2.61
-#define PID_YAW_Ti 0.75
-#define PID_YAW_Td 0.2
+#define PID_YAW_Kc 5
+#define PID_YAW_Ti 0
+#define PID_YAW_Td 0
 
 #define PID_ROLL_PITCH_IN 90
 
@@ -31,16 +30,13 @@
 #define MPU_Y_AXIS 0 //ROBOTUN KAFASINI YUKARI ASAGI YAPMASI
 #define MPU_Z_AXIS 1 //ROBOTUN SAGA SOLA YATMASI
 
-static BufferedSerial serial_port(PA_9, PA_10, 9600);
+static BufferedSerial serial_port(PA_9, PA_10);
 FileHandle *mbed::mbed_override_console(int fd)
 {
     return &serial_port;
 }
 
-
 MPU6050 mpu(PB_7,PB_6);
-//QMC5883L qmc(PB_7,PB_6);
-//MS5837 ms(PB_7,PB_6);
 
 Timer timer;
 
@@ -53,8 +49,8 @@ PwmOut mOnSol(PB_14);
 PwmOut mArkaSag(PC_7);
 PwmOut mArkaSol(PC_6);
 PwmOut mUstArka(PA_4);
-PwmOut mUstSag(PC_9);
-PwmOut mUstSol(PC_8);
+PwmOut mUstSag(PC_8);
+PwmOut mUstSol(PC_9);
 
 PID pitchPID (PID_PITCH_Kc, PID_PITCH_Ti, PID_PITCH_Td, 0.1);
 PID rollPID (PID_ROLL_Kc, PID_ROLL_Ti, PID_ROLL_Td, 0.1);
@@ -62,18 +58,6 @@ PID yawPID (PID_YAW_Kc, PID_YAW_Ti, PID_YAW_Td, 0.1);
 
 CAN can1(PB_8, PB_9, 500000);
 Controller controller;
-
-float pitchDiff;
-float yawDiff;
-float rollDiff;
-
-float currTime;
-float prevTime;
-float timeDiff;
-
-float accOffset[3];
-float gyroOffset[3];
-float angle[3];
 
 bool isRobotActive = false;
 void checkIsRobotActive() {
@@ -105,10 +89,6 @@ void checkAutonomous(bool robotActive) {
     }
 }
 
-void AutonomousDrive(int pitchDiff, int yawDiff, int rollDiff) {
-    //not implemented
-}
-
 int byteToMotorValue(int val) {
     return val*4+(255/1000)+1000;
 }
@@ -134,23 +114,28 @@ bool isAnalogStickMoved(int stick){
     return fitMotorValue(byteToMotorValue(stick)) != 1500;
 }
  
-void JoystickCheck(int yawAngle, int pitchAngle, int rollAngle){
+void JoystickCheck(int yawAngle){
     if(isAnalogStickMoved(controller.leftX)){
         yawPID.setSetPoint(yawAngle);
+        yawPID.setInputLimits ((-1*PID_YAW_IN + yawAngle) % 360, (PID_YAW_IN + yawAngle) % 360);
     }  
     // int trigger = (controller.leftTrigger - controller.rightTrigger)/6;
     // pitchPID.setSetPoint(trigger);
 }
+void Drive(int RightY, int RightX, int LeftY, int LeftX, int pitchDiff, int yawDiff, int rollDiff){
+    RightY = byteToMotorValue(RightY);
+    RightX = byteToMotorValue(RightX);
+    LeftY = byteToMotorValue(LeftY);
+    LeftX = byteToMotorValue(LeftX);
 
-void ManuelDrive(int pitchDiff, int yawDiff, int rollDiff) {
-    int mOnsag = (1500 - (yawDiff - 1500) - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  + (byteToMotorValue(controller.leftX) - 1500));
-    int mOnsol = (1500 - (yawDiff - 1500) - (byteToMotorValue(controller.rightY) - 1500) - (byteToMotorValue(controller.rightX) - 1500)  - (byteToMotorValue(controller.leftX) - 1500));
-    int mArkasag = (1500 - (yawDiff - 1500) + (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  - (byteToMotorValue(controller.leftX) - 1500));
-    int mArkasol = (1500 - (yawDiff - 1500) - (byteToMotorValue(controller.rightY) - 1500) + (byteToMotorValue(controller.rightX) - 1500)  - (byteToMotorValue(controller.leftX) - 1500));
+    int mOnsag = (1500 + (yawDiff - 1500) - (RightY - 1500) + (RightX - 1500)  + (LeftX - 1500));
+    int mOnsol = (1500 - (yawDiff - 1500) - (RightY - 1500) - (RightX - 1500)  - (LeftX - 1500));
+    int mArkasag = (1500 - (yawDiff - 1500) + (RightY - 1500) + (RightX - 1500)  - (LeftX - 1500));
+    int mArkasol = (1500 - (yawDiff - 1500) - (RightY - 1500) + (RightX - 1500)  - (LeftX - 1500));
 
-    int mUstarka = (1500 +  (byteToMotorValue(controller.leftY) - 1500));
-    int mUstsag = (1500 + (byteToMotorValue(controller.leftY) - 1500));
-    int mUstsol = (1500 - (byteToMotorValue(controller.leftY) - 1500));
+    int mUstarka = (1500 + /*(pitchDiff - 1500)*/  (LeftY - 1500)*3/5);
+    int mUstsag = (1500  + /*(pitchDiff-1500)*3/5*/  (LeftY - 1500));
+    int mUstsol = (1500 - /*(pitchDiff - 1500)*3/5*/  (LeftY - 1500));
 
     mOnSag.pulsewidth_us(fitMotorValue(mOnsag));
     mOnSol.pulsewidth_us(fitMotorValue(mOnsol));
@@ -159,11 +144,10 @@ void ManuelDrive(int pitchDiff, int yawDiff, int rollDiff) {
 
     mUstArka.pulsewidth_us(fitMotorValue(mUstarka));
     mUstSag.pulsewidth_us(fitMotorValue(mUstsag));
-    mUstSol.pulsewidth_us(fitMotorValue(mUstsol));
-
+    mUstSol.pulsewidth_us(fitMotorValue(mUstsol)); 
 }
 
-void initMotors() {
+void initMotors() { 
     mOnSag.period_ms(20);
     mOnSol.period_ms(20);
     mArkaSag.period_ms(20);
@@ -198,6 +182,10 @@ void initPID() {
     pitchPID.setMode(AUTO_MODE);  
     yawPID.setMode(AUTO_MODE); 
     rollPID.setMode(AUTO_MODE);
+
+    pitchPID.setSetPoint(0);
+    yawPID.setSetPoint(0);
+    rollPID.setSetPoint(0);
 }
 void initGyro(float *accOffset, float *gyroOffset) {
     mpu.setAlpha(0.97);
@@ -218,24 +206,43 @@ void resetRobot() {
     mUstSol.pulsewidth_us(1500);
 }
 
+void FlushSerial() {
+    char *temp;
+    while(serial_port.readable()) {
+        serial_port.read(temp, 1);
+    }
+}
+
 int main()
 {
+    float pitchDiff;
+    float yawDiff;
+    float rollDiff;
+
+    float currTime;
+    float prevTime;
+    float timeDiff;
+
+    float accOffset[3];
+    float gyroOffset[3];
+    float angle[3];
+
     initMotors();
     CANMessage msg;
 
+    serial_port.set_baud(9600);
+    //serial_port.set_baud(460800);
+    
     initPID();
     initGyro(accOffset, gyroOffset);
-    pitchPID.setSetPoint(0);
-    yawPID.setSetPoint(0);
-    rollPID.setSetPoint(0);
 
     timer.start();
     prevTime = chrono::duration<float>(timer.elapsed_time()).count();
 
     while (true) {
         int batteryVoltage = (10000+1000) / 1000 * (3.3 / 65535) * a0.read_u16() *10;
-        led2 = batteryVoltage > 180;
-         printf("analog: %d\n",batteryVoltage); 
+        led2 = batteryVoltage > 185;
+        //printf("batteryVoltage: %d\n",batteryVoltage); 
         
         currTime = chrono::duration<float>(timer.elapsed_time()).count();
         timeDiff = currTime - prevTime;
@@ -273,15 +280,30 @@ int main()
         yawDiff = yawPID.compute();
         rollDiff = rollPID.compute();
 
-        //printf("%d - %d\n",yawAngle, (int)yawDiff); 
+        printf("%d, %d\n", yawAngle, (int)yawDiff);
 
         if(autonomousMod) {
-            AutonomousDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
+            char c[3];
+
+            while(serial_port.readable()) {
+                serial_port.read(c, 1);
+                if(c[0] != 60) {
+                    continue;
+                }
+                serial_port.read(c, 1);
+                if(c[0] != 61) {
+                    continue;
+                }
+                serial_port.read(c, 3);
+                controller.SetAutonomousValues(int(c[0]), int(c[1]), int(c[2]));
+            }
+            Drive(controller.autonomous_rightY,controller.autonomous_rightX,controller.autonomous_leftY,127,(int)pitchDiff, (int)yawDiff, (int)rollDiff);
         }
         else {
-            ManuelDrive((int)pitchDiff, (int)yawDiff, (int)rollDiff);
-            JoystickCheck(yawAngle, pitchAngle, rollAngle);
+            //manual
+            Drive(controller.rightY,controller.rightX,controller.leftY,controller.leftX,(int)pitchDiff, (int)yawDiff, (int)rollDiff);
+            JoystickCheck(yawAngle);
         }
-        wait_us(100);
+        //FlushSerial();
     }
 }

@@ -27,6 +27,21 @@ void Controller::SetKeyValues(unsigned int id, unsigned char *data) {
     }
 }
 
+void Controller::SetAutonomousValues(int autonomous_leftY, int autonomous_rightY, int autonomous_rightX) {
+    if(autonomous_leftY > 255 || autonomous_leftY < 0) {
+        autonomous_leftY = this->autonomous_leftY;
+    }
+    if(autonomous_rightY > 255 || autonomous_rightY < 0) {
+        autonomous_rightY = this->autonomous_rightY;
+    }
+    if(autonomous_rightX > 255 || autonomous_rightX < 0) {
+        autonomous_rightX = this->autonomous_rightX;
+    }
+    this->autonomous_leftY = autonomous_leftY;
+    this->autonomous_rightY = autonomous_rightY;;
+    this->autonomous_rightX = autonomous_rightX;;
+}
+
 void Controller::Reset() {
     leftX = 127;
     leftY = 127;
@@ -44,4 +59,7 @@ void Controller::Reset() {
     rightTrigger = 0;
     leftBumper = false;
     rightBumper = false;
+    autonomous_leftY = 127;
+    autonomous_rightY = 127;
+    autonomous_rightX = 127;
 }
