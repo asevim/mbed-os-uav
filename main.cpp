@@ -8,9 +8,9 @@
 #define PID_ROLL_Ti 1
 #define PID_ROLL_Td 0
 
-#define PID_PITCH_Kc 2
+#define PID_PITCH_Kc 3
 #define PID_PITCH_Ti 0
-#define PID_PITCH_Td 0
+#define PID_PITCH_Td 0.1
 
 #define PID_YAW_Kc 5
 #define PID_YAW_Ti 0
@@ -114,10 +114,10 @@ bool isAnalogStickMoved(int stick){
     return fitMotorValue(byteToMotorValue(stick)) != 1500;
 }
  
+int yawAngleOffset;
 void JoystickCheck(int yawAngle){
     if(isAnalogStickMoved(controller.leftX)){
-        yawPID.setSetPoint(yawAngle);
-        yawPID.setInputLimits ((-1*PID_YAW_IN + yawAngle) % 360, (PID_YAW_IN + yawAngle) % 360);
+        yawAngleOffset = (-1) * yawAngle;
     }  
     // int trigger = (controller.leftTrigger - controller.rightTrigger)/6;
     // pitchPID.setSetPoint(trigger);
@@ -133,9 +133,9 @@ void Drive(int RightY, int RightX, int LeftY, int LeftX, int pitchDiff, int yawD
     int mArkasag = (1500 - (yawDiff - 1500) + (RightY - 1500) + (RightX - 1500)  - (LeftX - 1500));
     int mArkasol = (1500 - (yawDiff - 1500) - (RightY - 1500) + (RightX - 1500)  - (LeftX - 1500));
 
-    int mUstarka = (1500 + /*(pitchDiff - 1500)*/  (LeftY - 1500)*3/5);
-    int mUstsag = (1500  + /*(pitchDiff-1500)*3/5*/  (LeftY - 1500));
-    int mUstsol = (1500 - /*(pitchDiff - 1500)*3/5*/  (LeftY - 1500));
+    int mUstarka = (1500 + (pitchDiff - 1500) + (LeftY - 1500)*3/5);
+    int mUstsag = (1500  - (pitchDiff-1500)*3/5 + (LeftY - 1500));
+    int mUstsol = (1500 + (pitchDiff - 1500)*3/5 - (LeftY - 1500));
 
     mOnSag.pulsewidth_us(fitMotorValue(mOnsag));
     mOnSol.pulsewidth_us(fitMotorValue(mOnsol));
@@ -215,6 +215,8 @@ void FlushSerial() {
 
 int main()
 {
+    yawAngleOffset = 0;
+
     float pitchDiff;
     float yawDiff;
     float rollDiff;
@@ -272,7 +274,7 @@ int main()
         pitchAngle = (int)angle[MPU_Y_AXIS] < -1*PID_ROLL_PITCH_IN ? -1*PID_ROLL_PITCH_IN : angle[MPU_Y_AXIS];
         rollAngle = (int)angle[MPU_X_AXIS] < -1*PID_ROLL_PITCH_IN ? -1*PID_ROLL_PITCH_IN : angle[MPU_X_AXIS];
 
-        yawPID.setProcessValue (yawAngle); 
+        yawPID.setProcessValue (yawAngle + yawAngleOffset); 
         pitchPID.setProcessValue (pitchAngle);
         rollPID.setProcessValue (rollAngle);
 
@@ -280,7 +282,7 @@ int main()
         yawDiff = yawPID.compute();
         rollDiff = rollPID.compute();
 
-        printf("%d, %d\n", yawAngle, (int)yawDiff);
+        printf("%d, %d\n", yawAngle, (int)pitchDiff);
 
         if(autonomousMod) {
             char c[3];
