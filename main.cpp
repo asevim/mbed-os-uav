@@ -4,20 +4,21 @@
 #include "controller.h"
 #include "PID.h"
 
-#define PID_ROLL_Kc 0.2
-#define PID_ROLL_Ti 5
-#define PID_ROLL_Td 0.5
+#define PID_ROLL_Kc 0//0.2
+#define PID_ROLL_Ti 0//5
+#define PID_ROLL_Td 0//0.5
 
-#define PID_PITCH_Kc 0.3
-#define PID_PITCH_Ti 5
-#define PID_PITCH_Td 0.4
-
-#define PID_YAW_Kc 2
-#define PID_YAW_Ti 0
-#define PID_YAW_Td 0
+#define PID_PITCH_Kc 0.6*0.75//0.3
+#define PID_PITCH_Ti 1/2//5
+#define PID_PITCH_Td 1/8//0.4
 #define PID_ROLL_PITCH_IN 90
 
+#define PID_YAW_Kc 0.8*5//7
+#define PID_YAW_Ti 1/8//2*0.5
+#define PID_YAW_Td 1/8//2*0.125
 #define PID_YAW_IN 360
+
+
 
 #define PID_OUT_MIN 1000
 #define PID_OUT_MAX 2000
@@ -116,10 +117,10 @@ bool isAnalogStickMoved(int stick){
 int yawAngleOffset;
 int pitchAngleOffset;
 void JoystickCheck(int yawAngle, int pitchAngle){
-    if(isAnalogStickMoved(controller.leftX)){
+    if(controller.leftX != 127){
         yawAngleOffset = (-1) * yawAngle;
     }
-    if(controller.leftTrigger || controller.rightTrigger !=0){
+    if((controller.leftTrigger || controller.rightTrigger) != 0){
         pitchAngleOffset = (-1) * pitchAngle;
     }
 }
@@ -220,26 +221,26 @@ int main()
 {
     yawAngleOffset = 0;
 
-    float pitchDiff;
-    float yawDiff;
-    float rollDiff;
+    float pitchDiff=0;
+    float yawDiff=0;
+    float rollDiff=0;
 
-    float currTime;
-    float prevTime;
-    float timeDiff;
+    float currTime=0;
+    float prevTime=0;
+    float timeDiff=0;
 
     float accOffset[3];
     float gyroOffset[3];
     float angle[3];
 
+    initGyro(accOffset, gyroOffset);
     initMotors();
     CANMessage msg;
 
     serial_port.set_baud(9600);
     //serial_port.set_baud(460800);
     
-    initPID();
-    initGyro(accOffset, gyroOffset);
+   
 
     timer.start();
     prevTime = chrono::duration<float>(timer.elapsed_time()).count();
@@ -248,7 +249,7 @@ int main()
         int batteryVoltage = (10000+1000) / 1000 * (3.3 / 65535) * a0.read_u16() *10;
         led2 = batteryVoltage > 185;
         //printf("batteryVoltage: %d\n",batteryVoltage); 
-        
+        mpu.computeAngle (angle, accOffset, gyroOffset, timeDiff);
         currTime = chrono::duration<float>(timer.elapsed_time()).count();
         timeDiff = currTime - prevTime;
         prevTime = currTime;
@@ -265,13 +266,13 @@ int main()
             continue;
         }
 
-        mpu.computeAngle (angle, accOffset, gyroOffset, timeDiff);
-
+        initPID();
+        
         yawPID.setInterval(timeDiff);
         pitchPID.setInterval(timeDiff);
         rollPID.setInterval(timeDiff);
 
-        int yawAngle = (int)angle[MPU_Z_AXIS] % PID_YAW_IN;
+        int yawAngle = (int)angle[MPU_Z_AXIS];
         int pitchAngle = (int)angle[MPU_Y_AXIS] > PID_ROLL_PITCH_IN ? PID_ROLL_PITCH_IN : angle[MPU_Y_AXIS];
         int rollAngle = (int)angle[MPU_X_AXIS] > PID_ROLL_PITCH_IN ? PID_ROLL_PITCH_IN : angle[MPU_X_AXIS];
         pitchAngle = (int)angle[MPU_Y_AXIS] < -1*PID_ROLL_PITCH_IN ? -1*PID_ROLL_PITCH_IN : angle[MPU_Y_AXIS];
