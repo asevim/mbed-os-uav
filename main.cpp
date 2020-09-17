@@ -3,7 +3,7 @@
 //#include "QMC5883L.h"
 #include "controller.h"
 #include "PID.h"
-//#include "MS5837.h"
+#include "MS5837.h"
 
 #define PID_ROLL_Kc 0//0.2
 #define PID_ROLL_Ti 0//5
@@ -38,9 +38,10 @@ FileHandle *mbed::mbed_override_console(int fd)
 }
 
 MPU6050 mpu(PB_7,PB_6);
-//MS5837 ms(PB_7,PB_6);
+MS5837 ms(PB_7,PB_6);
 
 Timer timer;
+Timer Barometer;
 
 DigitalOut led1(PB_0);
 DigitalOut led2(PB_2);
@@ -228,25 +229,28 @@ int main()
     float yawDiff=0;
     float rollDiff=0;
 
-    float currTime=0;
-    float prevTime=0;
-    float timeDiff=0;
+    float currTime = 0;
+    float prevTime = 0;
+    float timeDiff = 0;
 
     float accOffset[3];
     float gyroOffset[3];
     float angle[3];
 
+    int BarometerCurrTime = 0;
+    int BarometerPrevTime = 0;
+    int BarometerTimeDiff = 0;
+
     initGyro(accOffset, gyroOffset);
-    //ms.MS5837Init();
+    ms.MS5837Init();
     initMotors();
     CANMessage msg;
 
     serial_port.set_baud(9600);
     //serial_port.set_baud(460800);
-    
-   
 
     timer.start();
+    Barometer.start();
     prevTime = chrono::duration<float>(timer.elapsed_time()).count();
 
     while (true) {
@@ -257,7 +261,7 @@ int main()
         timeDiff = currTime - prevTime;
         prevTime = currTime;
         mpu.computeAngle (angle, accOffset, gyroOffset, timeDiff);
-        
+
         if (can1.read(msg)) {
             controller.SetKeyValues(msg.id, msg.data);
             checkIsRobotActive();
@@ -290,10 +294,16 @@ int main()
         yawDiff = yawPID.compute();
         rollDiff = rollPID.compute();
 
-        //ms.Barometer_MS5837();
-        //int pressure = (int)ms.MS5837_Pressure();
+        BarometerCurrTime = std::chrono::duration_cast<std::chrono::milliseconds>(Barometer.elapsed_time()).count();
+        BarometerTimeDiff = BarometerCurrTime - BarometerPrevTime;
+        
+        if(BarometerTimeDiff > 100){
+            ms.Barometer_MS5837();
+            BarometerPrevTime = BarometerCurrTime;
+        }
+        int pressure = (int)ms.MS5837_Pressure();
         //printf("%d, %d\n", yawAngle, (int)pitchDiff);
-        //printf("%d\n" , pressure);
+        printf("%d\n" , pressure);
 
         if(autonomousMod) {
             char c[3];
