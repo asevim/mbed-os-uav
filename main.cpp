@@ -3,6 +3,7 @@
 //#include "QMC5883L.h"
 #include "controller.h"
 #include "PID.h"
+//#include "MS5837.h"
 
 #define PID_ROLL_Kc 0//0.2
 #define PID_ROLL_Ti 0//5
@@ -37,6 +38,7 @@ FileHandle *mbed::mbed_override_console(int fd)
 }
 
 MPU6050 mpu(PB_7,PB_6);
+//MS5837 ms(PB_7,PB_6);
 
 Timer timer;
 
@@ -220,6 +222,7 @@ void FlushSerial() {
 int main()
 {
     yawAngleOffset = 0;
+    pitchAngleOffset = 0;
 
     float pitchDiff=0;
     float yawDiff=0;
@@ -234,6 +237,7 @@ int main()
     float angle[3];
 
     initGyro(accOffset, gyroOffset);
+    //ms.MS5837Init();
     initMotors();
     CANMessage msg;
 
@@ -249,11 +253,11 @@ int main()
         int batteryVoltage = (10000+1000) / 1000 * (3.3 / 65535) * a0.read_u16() *10;
         led2 = batteryVoltage > 185;
         //printf("batteryVoltage: %d\n",batteryVoltage); 
-        mpu.computeAngle (angle, accOffset, gyroOffset, timeDiff);
         currTime = chrono::duration<float>(timer.elapsed_time()).count();
         timeDiff = currTime - prevTime;
         prevTime = currTime;
-
+        mpu.computeAngle (angle, accOffset, gyroOffset, timeDiff);
+        
         if (can1.read(msg)) {
             controller.SetKeyValues(msg.id, msg.data);
             checkIsRobotActive();
@@ -286,7 +290,10 @@ int main()
         yawDiff = yawPID.compute();
         rollDiff = rollPID.compute();
 
-        printf("%d, %d\n", yawAngle, (int)pitchDiff);
+        //ms.Barometer_MS5837();
+        //int pressure = (int)ms.MS5837_Pressure();
+        //printf("%d, %d\n", yawAngle, (int)pitchDiff);
+        //printf("%d\n" , pressure);
 
         if(autonomousMod) {
             char c[3];
