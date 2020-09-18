@@ -5,31 +5,29 @@
 #include "PID.h"
 #include "MS5837.h"
 
-#define PID_ROLL_Kc 0//0.2
-#define PID_ROLL_Ti 0//5
-#define PID_ROLL_Td 0//0.5
+#define PID_ROLL_Kc 0.8*0.6//0.2
+#define PID_ROLL_Ti 1/2//5
+#define PID_ROLL_Td 1/8//0.5
 
-#define PID_PITCH_Kc 0.6*0.75//0.3
+#define PID_PITCH_Kc 0.8*0.6//0.3
 #define PID_PITCH_Ti 1/2//5
-#define PID_PITCH_Td 1/8//0.4
-#define PID_ROLL_PITCH_IN 90
+#define PID_PITCH_Td 1/4//0.4
+#define PID_ROLL_PITCH_IN 90.0
 
 #define PID_YAW_Kc 0.8*5//7
-#define PID_YAW_Ti 1/8//2*0.5
+#define PID_YAW_Ti 1/2//2*0.5
 #define PID_YAW_Td 1/8//2*0.125
-#define PID_YAW_IN 360
+#define PID_YAW_IN 360.0
 
-
-
-#define PID_OUT_MIN 1000
-#define PID_OUT_MAX 2000
-#define PID_BIAS 1500
+#define PID_OUT_MIN 1000.0
+#define PID_OUT_MAX 2000.0
+#define PID_BIAS 1500.0
 
 #define MPU_OFFSET_SAMPLES 50
 
-#define MPU_X_AXIS 2 //ROBOTUN OLDUGU YERDE SAGA SOLA DONMESI
-#define MPU_Y_AXIS 0 //ROBOTUN KAFASINI YUKARI ASAGI YAPMASI
-#define MPU_Z_AXIS 1 //ROBOTUN SAGA SOLA YATMASI
+#define MPU_X_AXIS 2
+#define MPU_Y_AXIS 0 
+#define MPU_Z_AXIS 1 
 
 static BufferedSerial serial_port(PA_9, PA_10);
 FileHandle *mbed::mbed_override_console(int fd)
@@ -117,10 +115,10 @@ bool isAnalogStickMoved(int stick){
     return fitMotorValue(byteToMotorValue(stick)) != 1500;
 }
  
-int yawAngleOffset;
-int pitchAngleOffset;
-void JoystickCheck(int yawAngle, int pitchAngle){
-    if(controller.leftX != 127){
+float yawAngleOffset;
+float pitchAngleOffset;
+void JoystickCheck(float yawAngle, float pitchAngle){
+    if(isAnalogStickMoved(controller.leftX)){
         yawAngleOffset = (-1) * yawAngle;
     }
     if((controller.leftTrigger || controller.rightTrigger) != 0){
@@ -140,7 +138,7 @@ void Drive(int RightY, int RightX, int LeftY, int LeftX, int pitchDiff, int yawD
     int mArkasag = (1500 - (yawDiff - 1500) + (RightY - 1500) + (RightX - 1500)  - (LeftX - 1500));
     int mArkasol = (1500 - (yawDiff - 1500) - (RightY - 1500) + (RightX - 1500)  - (LeftX - 1500));
 
-    int mUstarka = (1500 + (pitchDiff - 1500) + (LeftY - 1500)*3/5 + (leftTrigger/4 - rightTrigger/4));
+    int mUstarka = (1500 + (pitchDiff - 1500) + (LeftY - 1500) + (leftTrigger/4 - rightTrigger/4));
     int mUstsag = (1500  - (pitchDiff-1500) + (LeftY - 1500) + (rollDiff - 1500) - (leftTrigger/4 - rightTrigger/4));
     int mUstsol = (1500 + (pitchDiff - 1500) - (LeftY - 1500) - (rollDiff - 1500) + (leftTrigger/4 - rightTrigger/4));
 
@@ -201,9 +199,9 @@ void initGyro(float *accOffset, float *gyroOffset) {
 }
 void resetRobot() {
     controller.Reset();
-    pitchPID.reset();
-    yawPID.reset();
-    rollPID.reset();
+    //pitchPID.reset();
+    //yawPID.reset();
+    //rollPID.reset();
     mOnSag.pulsewidth_us(1500);
     mOnSol.pulsewidth_us(1500);
     mArkaSag.pulsewidth_us(1500);
@@ -222,16 +220,16 @@ void FlushSerial() {
 
 int main()
 {
-    yawAngleOffset = 0;
-    pitchAngleOffset = 0;
+    yawAngleOffset = 0.0;
+    pitchAngleOffset = 0.0;
 
-    float pitchDiff=0;
-    float yawDiff=0;
-    float rollDiff=0;
+    int pitchDiff = 0;
+    int yawDiff = 0;
+    int rollDiff = 0;
 
-    float currTime = 0;
-    float prevTime = 0;
-    float timeDiff = 0;
+    float currTime = 0.0;
+    float prevTime = 0.0;
+    float timeDiff = 0.0;
 
     float accOffset[3];
     float gyroOffset[3];
@@ -240,6 +238,10 @@ int main()
     int BarometerCurrTime = 0;
     int BarometerPrevTime = 0;
     int BarometerTimeDiff = 0;
+
+    float yawAngle = 0.0;
+    float pitchAngle = 0.0;
+    float rollAngle = 0.0;
 
     initGyro(accOffset, gyroOffset);
     ms.MS5837Init();
@@ -262,6 +264,10 @@ int main()
         prevTime = currTime;
         mpu.computeAngle (angle, accOffset, gyroOffset, timeDiff);
 
+        yawAngle = angle[MPU_Z_AXIS];
+        pitchAngle = angle[MPU_Y_AXIS];
+        rollAngle = angle[MPU_X_AXIS];
+
         if (can1.read(msg)) {
             controller.SetKeyValues(msg.id, msg.data);
             checkIsRobotActive();
@@ -280,30 +286,32 @@ int main()
         pitchPID.setInterval(timeDiff);
         rollPID.setInterval(timeDiff);
 
-        int yawAngle = (int)angle[MPU_Z_AXIS];
-        int pitchAngle = (int)angle[MPU_Y_AXIS] > PID_ROLL_PITCH_IN ? PID_ROLL_PITCH_IN : angle[MPU_Y_AXIS];
-        int rollAngle = (int)angle[MPU_X_AXIS] > PID_ROLL_PITCH_IN ? PID_ROLL_PITCH_IN : angle[MPU_X_AXIS];
-        pitchAngle = (int)angle[MPU_Y_AXIS] < -1*PID_ROLL_PITCH_IN ? -1*PID_ROLL_PITCH_IN : angle[MPU_Y_AXIS];
-        rollAngle = (int)angle[MPU_X_AXIS] < -1*PID_ROLL_PITCH_IN ? -1*PID_ROLL_PITCH_IN : angle[MPU_X_AXIS];
-
+        pitchAngle = (int)pitchAngle > 90 ? PID_ROLL_PITCH_IN : pitchAngle;
+        rollAngle = (int)rollAngle > 90 ? PID_ROLL_PITCH_IN : rollAngle;
+        pitchAngle = (int)pitchAngle < -90 ? -1*PID_ROLL_PITCH_IN : pitchAngle;
+        rollAngle = (int)rollAngle < -90 ? -1*PID_ROLL_PITCH_IN : rollAngle;
+        
         yawPID.setProcessValue (yawAngle + yawAngleOffset); 
         pitchPID.setProcessValue (pitchAngle + pitchAngleOffset);
         rollPID.setProcessValue (rollAngle);
 
-        pitchDiff = pitchPID.compute();
-        yawDiff = yawPID.compute();
-        rollDiff = rollPID.compute();
+        pitchDiff = (int)pitchPID.compute();
+        yawDiff = (int)yawPID.compute();
+        rollDiff = (int)rollPID.compute(); 
+
+        if((int)angle[MPU_Y_AXIS] >= 90) pitchDiff = 1500;
+        if((int)angle[MPU_X_AXIS] >= 90) rollDiff = 1500;
 
         BarometerCurrTime = std::chrono::duration_cast<std::chrono::milliseconds>(Barometer.elapsed_time()).count();
         BarometerTimeDiff = BarometerCurrTime - BarometerPrevTime;
         
-        if(BarometerTimeDiff > 100){
-            ms.Barometer_MS5837();
+        if(BarometerTimeDiff > 1000){
+            //ms.Barometer_MS5837();
             BarometerPrevTime = BarometerCurrTime;
         }
         int pressure = (int)ms.MS5837_Pressure();
-        //printf("%d, %d\n", yawAngle, (int)pitchDiff);
-        printf("%d\n" , pressure);
+        printf("yaw = %d, pitch = %d, roll = %d\n", (int)yawAngle, (int)pitchAngle, (int)rollAngle);
+        //printf("%d\n" , pressure);
 
         if(autonomousMod) {
             char c[3];
