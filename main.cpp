@@ -6,17 +6,17 @@
 #include "MS5837.h"
 
 #define PID_ROLL_Kc 0.8*0.6//0.2
-#define PID_ROLL_Ti 1/2//5
-#define PID_ROLL_Td 1/8//0.5
+#define PID_ROLL_Ti 0.5//5
+#define PID_ROLL_Td 0.125//0.5
 
 #define PID_PITCH_Kc 0.8*0.6//0.3
-#define PID_PITCH_Ti 1/2//5
-#define PID_PITCH_Td 1/4//0.4
+#define PID_PITCH_Ti 0.5//5
+#define PID_PITCH_Td 0.25//0.4
 #define PID_ROLL_PITCH_IN 90.0
 
 #define PID_YAW_Kc 0.8*5//7
-#define PID_YAW_Ti 1/2//2*0.5
-#define PID_YAW_Td 1/8//2*0.125
+#define PID_YAW_Ti 0.5//2*0.5
+#define PID_YAW_Td 0.125//2*0.125
 #define PID_YAW_IN 360.0
 
 #define PID_OUT_MIN 1000.0
@@ -39,7 +39,6 @@ MPU6050 mpu(PB_7,PB_6);
 MS5837 ms(PB_7,PB_6);
 
 Timer timer;
-Timer Barometer;
 
 DigitalOut led1(PB_0);
 DigitalOut led2(PB_2);
@@ -252,8 +251,8 @@ int main()
     //serial_port.set_baud(460800);
 
     timer.start();
-    Barometer.start();
     prevTime = chrono::duration<float>(timer.elapsed_time()).count();
+    BarometerPrevTime = chrono::duration<float>(timer.elapsed_time()).count();
 
     while (true) {
         int batteryVoltage = (10000+1000) / 1000 * (3.3 / 65535) * a0.read_u16() *10;
@@ -302,10 +301,10 @@ int main()
         if((int)angle[MPU_Y_AXIS] >= 90) pitchDiff = 1500;
         if((int)angle[MPU_X_AXIS] >= 90) rollDiff = 1500;
 
-        BarometerCurrTime = std::chrono::duration_cast<std::chrono::milliseconds>(Barometer.elapsed_time()).count();
+        BarometerCurrTime = chrono::duration<float>(timer.elapsed_time()).count();
         BarometerTimeDiff = BarometerCurrTime - BarometerPrevTime;
         
-        if(BarometerTimeDiff > 1000){
+        if(BarometerTimeDiff > 1000000){
             //ms.Barometer_MS5837();
             BarometerPrevTime = BarometerCurrTime;
         }
