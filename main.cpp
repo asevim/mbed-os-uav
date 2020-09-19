@@ -205,6 +205,12 @@ void initGyro(float *accOffset, float *gyroOffset) {
     mpu.getOffset(accOffset, gyroOffset, MPU_OFFSET_SAMPLES);
     wait_us(1000000);
 }
+void FlushSerial() {
+    char *temp;
+    while(serial_port.readable()) {
+        serial_port.read(temp, 1);
+    }
+}
 void resetRobot() {
     controller.Reset();
     pitchPID.reset();
@@ -217,15 +223,8 @@ void resetRobot() {
     mUstArka.pulsewidth_us(1500);
     mUstSag.pulsewidth_us(1500);
     mUstSol.pulsewidth_us(1500);
+    FlushSerial();
 }
-
-void FlushSerial() {
-    char *temp;
-    while(serial_port.readable()) {
-        serial_port.read(temp, 1);
-    }
-}
-
 int main()
 {
     yawAngleOffset = 0.0;
@@ -272,8 +271,6 @@ int main()
         yawAngle = angle[MPU_Z_AXIS];
         pitchAngle = angle[MPU_Y_AXIS];
         rollAngle = angle[MPU_X_AXIS];
-
-        FlushSerial();
 
         if (can1.read(msg)) {
             controller.SetKeyValues(msg.id, msg.data);
@@ -335,5 +332,6 @@ int main()
             Drive(controller.rightY,controller.rightX,controller.leftY,controller.leftX,(int)pitchDiff, (int)yawDiff, (int)rollDiff);
             JoystickCheck(yawAngle, pitchAngle, currTime);
         }
+        FlushSerial();
     }
 }
