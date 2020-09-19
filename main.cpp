@@ -126,6 +126,7 @@ void JoystickCheck(float yawAngle, float pitchAngle){
     }
 }
 void Drive(int RightY, int RightX, int LeftY, int LeftX, int pitchDiff, int yawDiff, int rollDiff){
+    printf(" %d , %d , %d , %d\n" , RightX, RightY, LeftY, LeftX);
     RightY = byteToMotorValue(RightY);
     RightX = byteToMotorValue(RightX);
     LeftY = byteToMotorValue(LeftY);
@@ -137,6 +138,7 @@ void Drive(int RightY, int RightX, int LeftY, int LeftX, int pitchDiff, int yawD
     int mOnsol = (1500 - (yawDiff - 1500) - (RightY - 1500) - (RightX - 1500)  - (LeftX - 1500));
     int mArkasag = (1500 - (yawDiff - 1500) + (RightY - 1500) + (RightX - 1500)  - (LeftX - 1500));
     int mArkasol = (1500 - (yawDiff - 1500) - (RightY - 1500) + (RightX - 1500)  - (LeftX - 1500));
+
 
     int mUstarka = (1500 + (pitchDiff - 1500) + (LeftY - 1500) + (leftTrigger/4 - rightTrigger/4));
     int mUstsag = (1500  - (pitchDiff-1500) + (LeftY - 1500) + (rollDiff - 1500) - (leftTrigger/4 - rightTrigger/4));
@@ -312,8 +314,8 @@ int main()
             BarometerPrevTime = BarometerCurrTime;
         }
         int pressure = (int)ms.MS5837_Pressure();
-        printf("yaw = %d, pitch = %d, roll = %d\n", (int)yawAngle, (int)pitchAngle, (int)rollAngle);
-        //printf("%d\n" , pressure);
+        //printf("yaw = %d, pitch = %d, roll = %d\n", (int)yawAngle, (int)pitchAngle, (int)rollAngle);
+        
 
         if(controller.rightBumper) Gripp = true;
         if(controller.leftBumper) Gripp = false;
