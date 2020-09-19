@@ -121,28 +121,26 @@ void JoystickCheck(float yawAngle, float pitchAngle){
     if(isAnalogStickMoved(controller.leftX)){
         yawAngleOffset = (-1) * yawAngle;
     }
-    if((controller.leftTrigger || controller.rightTrigger) != 0){
+    if(controller.leftTrigger != 0 || controller.rightTrigger != 0){
         pitchAngleOffset = (-1) * pitchAngle;
     }
 }
 void Drive(int RightY, int RightX, int LeftY, int LeftX, int pitchDiff, int yawDiff, int rollDiff){
-    printf(" %d , %d , %d , %d\n" , RightX, RightY, LeftY, LeftX);
-    RightY = byteToMotorValue(RightY);
-    RightX = byteToMotorValue(RightX);
-    LeftY = byteToMotorValue(LeftY);
-    LeftX = byteToMotorValue(LeftX);
+    int ry = byteToMotorValue(RightY);
+    int rx = byteToMotorValue(RightX);
+    int ly = byteToMotorValue(LeftY);
+    int lx = byteToMotorValue(LeftX);
     int leftTrigger = byteToMotorValue(controller.leftTrigger);
     int rightTrigger = byteToMotorValue(controller.rightTrigger);
 
-    int mOnsag = (1500 + (yawDiff - 1500) - (RightY - 1500) + (RightX - 1500)  + (LeftX - 1500));
-    int mOnsol = (1500 - (yawDiff - 1500) - (RightY - 1500) - (RightX - 1500)  - (LeftX - 1500));
-    int mArkasag = (1500 - (yawDiff - 1500) + (RightY - 1500) + (RightX - 1500)  - (LeftX - 1500));
-    int mArkasol = (1500 - (yawDiff - 1500) - (RightY - 1500) + (RightX - 1500)  - (LeftX - 1500));
+    int mOnsag = (1500 + (yawDiff - 1500) - (ry - 1500) + (rx - 1500)  + (lx - 1500));
+    int mOnsol = (1500 - (yawDiff - 1500) - (ry - 1500) - (rx - 1500)  - (lx - 1500));
+    int mArkasag = (1500 - (yawDiff - 1500) + (ry - 1500) + (rx - 1500)  - (lx - 1500));
+    int mArkasol = (1500 - (yawDiff - 1500) - (ry - 1500) + (rx - 1500)  - (lx - 1500));
 
-
-    int mUstarka = (1500 + (pitchDiff - 1500) + (LeftY - 1500) + (leftTrigger/4 - rightTrigger/4));
-    int mUstsag = (1500  - (pitchDiff-1500) + (LeftY - 1500) + (rollDiff - 1500) - (leftTrigger/4 - rightTrigger/4));
-    int mUstsol = (1500 + (pitchDiff - 1500) - (LeftY - 1500) - (rollDiff - 1500) + (leftTrigger/4 - rightTrigger/4));
+    int mUstarka = (1500 + (pitchDiff - 1500) + (ly - 1500) + (leftTrigger/4 - rightTrigger/4));
+    int mUstsag = (1500  - (pitchDiff-1500) + (ly - 1500) + (rollDiff - 1500) - (leftTrigger/4 - rightTrigger/4));
+    int mUstsol = (1500 + (pitchDiff - 1500) - (ly - 1500) - (rollDiff - 1500) + (leftTrigger/4 - rightTrigger/4));
 
     mOnSag.pulsewidth_us(fitMotorValue(mOnsag));
     mOnSol.pulsewidth_us(fitMotorValue(mOnsol));
@@ -250,6 +248,7 @@ int main()
     initGyro(accOffset, gyroOffset);
     ms.MS5837Init();
     initMotors();
+    initPID();
     CANMessage msg;
 
     serial_port.set_baud(9600);
@@ -257,10 +256,10 @@ int main()
 
     timer.start();
     prevTime = chrono::duration<float>(timer.elapsed_time()).count();
-    BarometerPrevTime = chrono::duration<float>(timer.elapsed_time()).count();
+    BarometerPrevTime = prevTime;
 
     while (true) {
-        int batteryVoltage = (10000+1000) / 1000 * (3.3 / 65535) * a0.read_u16() *10;
+        int batteryVoltage = (363 / 65535) * a0.read_u16();
         led2 = batteryVoltage > 185;
         //printf("batteryVoltage: %d\n",batteryVoltage); 
         currTime = chrono::duration<float>(timer.elapsed_time()).count();
@@ -283,8 +282,6 @@ int main()
             led1 = !led1;
             continue;
         }
-
-        initPID();
         
         yawPID.setInterval(timeDiff);
         pitchPID.setInterval(timeDiff);
@@ -306,21 +303,18 @@ int main()
         if((int)angle[MPU_Y_AXIS] >= 90) pitchDiff = 1500;
         if((int)angle[MPU_X_AXIS] >= 90) rollDiff = 1500;
 
-        BarometerCurrTime = chrono::duration<float>(timer.elapsed_time()).count();
-        BarometerTimeDiff = BarometerCurrTime - BarometerPrevTime;
+        BarometerTimeDiff = currTime - BarometerPrevTime;
         
         if(BarometerTimeDiff > 1000000){
             //ms.Barometer_MS5837();
-            BarometerPrevTime = BarometerCurrTime;
+            BarometerPrevTime = currTime;
         }
         int pressure = (int)ms.MS5837_Pressure();
         //printf("yaw = %d, pitch = %d, roll = %d\n", (int)yawAngle, (int)pitchAngle, (int)rollAngle);
         
-
-        if(controller.rightBumper) Gripp = true;
-        if(controller.leftBumper) Gripp = false;
-
         if(autonomousMod) {
+            Gripp = false;
+            
             char c[3];
 
             while(serial_port.readable()) {
@@ -339,6 +333,9 @@ int main()
         }
         else {
             //manual
+            if(controller.rightBumper) Gripp = true;
+            if(controller.leftBumper) Gripp = false;
+            
             Drive(controller.rightY,controller.rightX,controller.leftY,controller.leftX,(int)pitchDiff, (int)yawDiff, (int)rollDiff);
             JoystickCheck(yawAngle, pitchAngle);
         }
