@@ -1,22 +1,21 @@
 #include "mbed.h"
 #include "MPU6050.h"
-//#include "QMC5883L.h"
 #include "controller.h"
 #include "PID.h"
-#include "MS5837.h"
+// #include "MS5837.h"
 
-#define PID_ROLL_Kc 0//0.8*0.6//0.2
-#define PID_ROLL_Ti 0//0.5//5
-#define PID_ROLL_Td 0//0.125//0.5
+#define PID_ROLL_Kc 3//0.48
+#define PID_ROLL_Ti 0//0.5
+#define PID_ROLL_Td 0//0.125
 
-#define PID_PITCH_Kc 0//0.8*0.6//0.3
-#define PID_PITCH_Ti 0//0.5//5
-#define PID_PITCH_Td 0//0.25//0.4
-#define PID_ROLL_PITCH_IN 90.0
+#define PID_PITCH_Kc 3//0.48
+#define PID_PITCH_Ti 0//0.5
+#define PID_PITCH_Td 0//0.125s
+#define PID_ROLL_PITCH_IN 360.0
 
-#define PID_YAW_Kc 0.8//7
-#define PID_YAW_Ti 0//2*0.5
-#define PID_YAW_Td 0//2*0.125
+#define PID_YAW_Kc 3//0.48
+#define PID_YAW_Ti 0//0.25
+#define PID_YAW_Td 0//0.125
 #define PID_YAW_IN 360.0
 
 #define PID_OUT_MIN 1000.0
@@ -26,8 +25,8 @@
 #define MPU_OFFSET_SAMPLES 50
 
 #define MPU_X_AXIS 2
-#define MPU_Y_AXIS 0 
-#define MPU_Z_AXIS 1 
+#define MPU_Y_AXIS 0
+#define MPU_Z_AXIS 1
 
 static BufferedSerial serial_port(PA_9, PA_10);
 FileHandle *mbed::mbed_override_console(int fd)
@@ -36,14 +35,13 @@ FileHandle *mbed::mbed_override_console(int fd)
 }
 
 MPU6050 mpu(PB_7,PB_6);
-MS5837 ms(PB_7,PB_6);
 
 Timer timer;
 
 DigitalOut led1(PB_0);
 DigitalOut led2(PB_2);
 DigitalOut Gripp(PA_1);
-AnalogIn a0(PA_0);
+AnalogIn voltageAnalogPin(PA_0);
 
 PwmOut mOnSag(PB_15);
 PwmOut mOnSol(PB_14);
@@ -95,7 +93,7 @@ int byteToMotorValue(int val) {
 }
 int fitMotorValue(int val, bool reverse = false){
     int result = val;
-    
+
     if(result < 1530 && result > 1470) {
         return 1500;
     }
@@ -109,21 +107,23 @@ int fitMotorValue(int val, bool reverse = false){
         result = 3000 - result;
     }
     return result;
-} 
+}
 
 bool isAnalogStickMoved(int stick){
     return fitMotorValue(byteToMotorValue(stick)) != 1500;
 }
- 
+
 float yawAngleOffset;
-float pitchAngleOffset;
-void JoystickCheck(float yawAngle, float pitchAngle){
+float lastMovedTime = 0;
+
+void JoystickCheck(float yawAngle, float pitchAngle, float currentTime){
     if(isAnalogStickMoved(controller.leftX)){
+        lastMovedTime = currentTime;
+    }
+    if(currentTime - lastMovedTime < 0.5) {
         yawAngleOffset = (-1) * yawAngle;
     }
-    if(controller.leftTrigger != 0 || controller.rightTrigger != 0){
-        pitchAngleOffset = (-1) * pitchAngle;
-    }
+
 }
 void Drive(int RightY, int RightX, int LeftY, int LeftX, int pitchDiff, int yawDiff, int rollDiff){
     int ry = byteToMotorValue(RightY);
@@ -138,9 +138,17 @@ void Drive(int RightY, int RightX, int LeftY, int LeftX, int pitchDiff, int yawD
     int mArkasag = (1500 - (yawDiff - 1500) + (ry - 1500) + (rx - 1500)  - (lx - 1500));
     int mArkasol = (1500 - (yawDiff - 1500) - (ry - 1500) + (rx - 1500)  - (lx - 1500));
 
-    int mUstarka = (1500 + (pitchDiff - 1500) + (ly - 1500) + (leftTrigger/4 - rightTrigger/4));
-    int mUstsag = (1500  - (pitchDiff-1500) + (ly - 1500) + (rollDiff - 1500) - (leftTrigger/4 - rightTrigger/4));
-    int mUstsol = (1500 + (pitchDiff - 1500) - (ly - 1500) - (rollDiff - 1500) + (leftTrigger/4 - rightTrigger/4));
+    int ustPitch = pitchDiff;
+    int ustRoll = 1500;
+
+    if(controller.leftTrigger != 0 || controller.rightTrigger != 0){
+        ustPitch = 1500;
+        ustRoll = 1500;
+    }
+
+    int mUstarka = (1500 + (ustPitch - 1500) + (ly - 1500) + (leftTrigger/4 - rightTrigger/4));
+    int mUstsag = (1500  - (ustPitch-1500) + (ly - 1500) + (ustRoll - 1500) - (leftTrigger/4 - rightTrigger/4));
+    int mUstsol = (1500 + (ustPitch - 1500) - (ly - 1500) - (ustRoll - 1500) + (leftTrigger/4 - rightTrigger/4));
 
     mOnSag.pulsewidth_us(fitMotorValue(mOnsag));
     mOnSol.pulsewidth_us(fitMotorValue(mOnsol));
@@ -149,10 +157,10 @@ void Drive(int RightY, int RightX, int LeftY, int LeftX, int pitchDiff, int yawD
 
     mUstArka.pulsewidth_us(fitMotorValue(mUstarka));
     mUstSag.pulsewidth_us(fitMotorValue(mUstsag));
-    mUstSol.pulsewidth_us(fitMotorValue(mUstsol)); 
+    mUstSol.pulsewidth_us(fitMotorValue(mUstsol));
 }
 
-void initMotors() { 
+void initMotors() {
     mOnSag.period_ms(20);
     mOnSol.period_ms(20);
     mArkaSag.period_ms(20);
@@ -171,21 +179,21 @@ void initMotors() {
 }
 
 void initPID() {
-    pitchPID.setInputLimits (-1 * PID_ROLL_PITCH_IN, PID_ROLL_PITCH_IN);  
+    pitchPID.setInputLimits (-1 * PID_ROLL_PITCH_IN, PID_ROLL_PITCH_IN);
     pitchPID.setOutputLimits (PID_OUT_MIN, PID_OUT_MAX);
- 
+
     yawPID.setInputLimits (-1 * PID_YAW_IN, PID_YAW_IN);
     yawPID.setOutputLimits (PID_OUT_MIN, PID_OUT_MAX);
 
     rollPID.setInputLimits (-1 * PID_ROLL_PITCH_IN, PID_ROLL_PITCH_IN);
     rollPID.setOutputLimits (PID_OUT_MIN, PID_OUT_MAX);
-    
+
     pitchPID.setBias(PID_BIAS);
     yawPID.setBias(PID_BIAS);
     rollPID.setBias(PID_BIAS);
 
-    pitchPID.setMode(AUTO_MODE);  
-    yawPID.setMode(AUTO_MODE); 
+    pitchPID.setMode(AUTO_MODE);
+    yawPID.setMode(AUTO_MODE);
     rollPID.setMode(AUTO_MODE);
 
     pitchPID.setSetPoint(0);
@@ -195,7 +203,7 @@ void initPID() {
 void initGyro(float *accOffset, float *gyroOffset) {
     mpu.setAlpha(0.97);
     mpu.getOffset(accOffset, gyroOffset, MPU_OFFSET_SAMPLES);
-    wait_us(100000);
+    wait_us(1000000);
 }
 void resetRobot() {
     controller.Reset();
@@ -221,7 +229,6 @@ void FlushSerial() {
 int main()
 {
     yawAngleOffset = 0.0;
-    pitchAngleOffset = 0.0;
 
     int pitchDiff = 0;
     int yawDiff = 0;
@@ -235,10 +242,6 @@ int main()
     float gyroOffset[3];
     float angle[3];
 
-    int BarometerCurrTime = 0;
-    int BarometerPrevTime = 0;
-    int BarometerTimeDiff = 0;
-
     float yawAngle = 0.0;
     float pitchAngle = 0.0;
     float rollAngle = 0.0;
@@ -246,22 +249,21 @@ int main()
     Gripp = false;
 
     initGyro(accOffset, gyroOffset);
-    ms.MS5837Init();
+    // ms.MS5837Init();
     initMotors();
     initPID();
     CANMessage msg;
 
-    serial_port.set_baud(9600);
-    //serial_port.set_baud(460800);
+    serial_port.set_baud(460800);
 
     timer.start();
     prevTime = chrono::duration<float>(timer.elapsed_time()).count();
-    BarometerPrevTime = prevTime;
+    // int BarometerPrevTime = prevTime;
 
     while (true) {
-        int batteryVoltage = (363 / 65535) * a0.read_u16();
+        int batteryVoltage = (363.0 / 65535.0) * voltageAnalogPin.read_u16();
         led2 = batteryVoltage > 185;
-        //printf("batteryVoltage: %d\n",batteryVoltage); 
+        //printf("batteryVoltage: %d\n",batteryVoltage);
         currTime = chrono::duration<float>(timer.elapsed_time()).count();
         timeDiff = currTime - prevTime;
         prevTime = currTime;
@@ -270,6 +272,8 @@ int main()
         yawAngle = angle[MPU_Z_AXIS];
         pitchAngle = angle[MPU_Y_AXIS];
         rollAngle = angle[MPU_X_AXIS];
+
+        FlushSerial();
 
         if (can1.read(msg)) {
             controller.SetKeyValues(msg.id, msg.data);
@@ -282,39 +286,31 @@ int main()
             led1 = !led1;
             continue;
         }
-        
+
         yawPID.setInterval(timeDiff);
         pitchPID.setInterval(timeDiff);
         rollPID.setInterval(timeDiff);
-
-        pitchAngle = (int)pitchAngle > 90 ? PID_ROLL_PITCH_IN : pitchAngle;
-        rollAngle = (int)rollAngle > 90 ? PID_ROLL_PITCH_IN : rollAngle;
-        pitchAngle = (int)pitchAngle < -90 ? -1*PID_ROLL_PITCH_IN : pitchAngle;
-        rollAngle = (int)rollAngle < -90 ? -1*PID_ROLL_PITCH_IN : rollAngle;
-        
-        yawPID.setProcessValue (yawAngle + yawAngleOffset); 
-        pitchPID.setProcessValue (pitchAngle + pitchAngleOffset);
+        yawPID.setProcessValue (yawAngle + yawAngleOffset);
+        pitchPID.setProcessValue (pitchAngle);
         rollPID.setProcessValue (rollAngle);
 
         pitchDiff = (int)pitchPID.compute();
         yawDiff = (int)yawPID.compute();
-        rollDiff = (int)rollPID.compute(); 
+        rollDiff = (int)rollPID.compute();
 
-        if((int)angle[MPU_Y_AXIS] >= 90) pitchDiff = 1500;
-        if((int)angle[MPU_X_AXIS] >= 90) rollDiff = 1500;
+        // BarometerTimeDiff = currTime - BarometerPrevTime;
 
-        BarometerTimeDiff = currTime - BarometerPrevTime;
-        
-        if(BarometerTimeDiff > 1000000){
-            //ms.Barometer_MS5837();
-            BarometerPrevTime = currTime;
-        }
-        int pressure = (int)ms.MS5837_Pressure();
+        // if(BarometerTimeDiff > 1000000){
+        //     //ms.Barometer_MS5837();
+        //     BarometerPrevTime = currTime;
+        // }
+        // int pressure = (int)ms.MS5837_Pressure();
+
         //printf("yaw = %d, pitch = %d, roll = %d\n", (int)yawAngle, (int)pitchAngle, (int)rollAngle);
-        
+
         if(autonomousMod) {
             Gripp = false;
-            
+
             char c[3];
 
             while(serial_port.readable()) {
@@ -335,10 +331,9 @@ int main()
             //manual
             if(controller.rightBumper) Gripp = true;
             if(controller.leftBumper) Gripp = false;
-            
+
             Drive(controller.rightY,controller.rightX,controller.leftY,controller.leftX,(int)pitchDiff, (int)yawDiff, (int)rollDiff);
-            JoystickCheck(yawAngle, pitchAngle);
+            JoystickCheck(yawAngle, pitchAngle, currTime);
         }
-        //FlushSerial();
     }
 }
