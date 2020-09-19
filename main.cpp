@@ -5,18 +5,18 @@
 #include "PID.h"
 #include "MS5837.h"
 
-#define PID_ROLL_Kc 0.8*0.6//0.2
-#define PID_ROLL_Ti 0.5//5
-#define PID_ROLL_Td 0.125//0.5
+#define PID_ROLL_Kc 0//0.8*0.6//0.2
+#define PID_ROLL_Ti 0//0.5//5
+#define PID_ROLL_Td 0//0.125//0.5
 
-#define PID_PITCH_Kc 0.8*0.6//0.3
-#define PID_PITCH_Ti 0.5//5
-#define PID_PITCH_Td 0.25//0.4
+#define PID_PITCH_Kc 0//0.8*0.6//0.3
+#define PID_PITCH_Ti 0//0.5//5
+#define PID_PITCH_Td 0//0.25//0.4
 #define PID_ROLL_PITCH_IN 90.0
 
-#define PID_YAW_Kc 0.8*5//7
-#define PID_YAW_Ti 0.5//2*0.5
-#define PID_YAW_Td 0.125//2*0.125
+#define PID_YAW_Kc 0.8//7
+#define PID_YAW_Ti 0//2*0.5
+#define PID_YAW_Td 0//2*0.125
 #define PID_YAW_IN 360.0
 
 #define PID_OUT_MIN 1000.0
@@ -42,6 +42,7 @@ Timer timer;
 
 DigitalOut led1(PB_0);
 DigitalOut led2(PB_2);
+DigitalOut Gripp(PA_1);
 AnalogIn a0(PA_0);
 
 PwmOut mOnSag(PB_15);
@@ -194,13 +195,13 @@ void initPID() {
 void initGyro(float *accOffset, float *gyroOffset) {
     mpu.setAlpha(0.97);
     mpu.getOffset(accOffset, gyroOffset, MPU_OFFSET_SAMPLES);
-    wait_us(10000);
+    wait_us(100000);
 }
 void resetRobot() {
     controller.Reset();
-    //pitchPID.reset();
-    //yawPID.reset();
-    //rollPID.reset();
+    pitchPID.reset();
+    yawPID.reset();
+    rollPID.reset();
     mOnSag.pulsewidth_us(1500);
     mOnSol.pulsewidth_us(1500);
     mArkaSag.pulsewidth_us(1500);
@@ -241,6 +242,8 @@ int main()
     float yawAngle = 0.0;
     float pitchAngle = 0.0;
     float rollAngle = 0.0;
+
+    Gripp = false;
 
     initGyro(accOffset, gyroOffset);
     ms.MS5837Init();
@@ -311,6 +314,9 @@ int main()
         int pressure = (int)ms.MS5837_Pressure();
         printf("yaw = %d, pitch = %d, roll = %d\n", (int)yawAngle, (int)pitchAngle, (int)rollAngle);
         //printf("%d\n" , pressure);
+
+        if(controller.rightBumper) Gripp = true;
+        if(controller.leftBumper) Gripp = false;
 
         if(autonomousMod) {
             char c[3];
