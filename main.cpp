@@ -246,11 +246,11 @@ int main()
     float rollAngle = 0.0;
 
     Gripp = false;
-
-    initGyro(accOffset, gyroOffset);
+    
     // ms.MS5837Init();
     initMotors();
     initPID();
+    initGyro(accOffset, gyroOffset);
     CANMessage msg;
 
     serial_port.set_baud(460800);
@@ -323,6 +323,7 @@ int main()
                 controller.SetAutonomousValues(int(c[0]), int(c[1]), int(c[2]));
             }
             Drive(controller.autonomous_rightY,controller.autonomous_rightX,controller.autonomous_leftY,127,(int)pitchDiff, (int)yawDiff, (int)rollDiff);
+            //printf("RY:%d,RX:%d,LY:%d",controller.autonomous_rightY,controller.autonomous_rightX,controller.autonomous_leftY);
         }
         else {
             //manual
@@ -333,5 +334,6 @@ int main()
             JoystickCheck(yawAngle, pitchAngle, currTime);
         }
         FlushSerial();
+        wait_us(100);
     }
 }
